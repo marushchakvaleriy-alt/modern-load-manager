@@ -1,0 +1,62 @@
+@import "tailwindcss";
+
+@theme {
+  --color-background: #050505;
+  --color-surface: #121212;
+  --color-primary: #3d5afe;
+  --color-secondary: #64748b;
+  --color-accent: #ffab00;
+  --color-danger: #ff1744;
+  --color-success: #00e676;
+  --color-border: #1f1f1f;
+  
+  --font-sans: "Outfit", "Inter", system-ui, sans-serif;
+  
+  --radius-xl: 1rem;
+  --radius-2xl: 1.5rem;
+}
+
+@layer base {
+  body {
+    @apply bg-background text-slate-100 antialiased selection:bg-primary/30;
+  }
+}
+
+@layer components {
+  .glass-card {
+    @apply bg-surface border border-border shadow-2xl rounded-2xl transition-all duration-300;
+    backdrop-filter: blur(12px);
+  }
+
+  .sidebar-link {
+    @apply flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 text-secondary hover:text-white hover:bg-white/5;
+  }
+
+  .sidebar-link.active {
+    @apply bg-primary/10 text-primary border-l-4 border-primary shadow-[0_0_20px_rgba(61,90,254,0.1)];
+  }
+
+  .btn-primary {
+    @apply bg-primary hover:bg-primary/90 text-white px-6 py-2.5 rounded-xl font-semibold shadow-lg shadow-primary/20 
+           transition-all duration-200 active:scale-95 flex items-center justify-center gap-2;
+  }
+  
+  .badge {
+    @apply px-3 py-1 rounded-full text-[10px] font-bold tracking-wider uppercase;
+  }
+  
+  .table-header {
+    @apply px-6 py-4 text-secondary text-xs font-bold uppercase tracking-widest border-b border-border;
+  }
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+}
+::-webkit-scrollbar-track {
+  @apply bg-background;
+}
+::-webkit-scrollbar-thumb {
+  @apply bg-border rounded-full hover:bg-white/10;
+}
