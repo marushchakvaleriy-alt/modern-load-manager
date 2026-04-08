@@ -280,9 +280,7 @@ export const useLoadEngine = (projects, employees, absences = []) => {
       const dayStart = new Date(d); dayStart.setHours(0, 0, 0, 0);
       const dayEnd   = new Date(d); dayEnd.setHours(23, 59, 59, 999);
       const dateStr = d.toISOString().split('T')[0];
-      const dayEnd   = new Date(d); dayEnd.setHours(23, 59, 59, 999);
       const isWorkingDay = d.getDay() !== 0 && d.getDay() !== 6;
-      const dateStr = d.toISOString().split('T')[0];
       
       // 1. Input: created on this exact day
       const input = filteredProjects.filter(p => {
