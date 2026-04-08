@@ -291,7 +291,11 @@ const Flow = () => {
               return `Протерміновані: ${day.overdue}`;
             }
 
-            const capacityValue = isAllDirections ? day.capacity : day.estimatedCapacity;
+            const capacityValue = Number.isFinite(context.parsed?.y)
+              ? context.parsed.y
+              : isAllDirections
+                ? day.capacity
+                : day.estimatedCapacity;
             return `${context.dataset.label}: ${capacityValue}`;
           }
         }
