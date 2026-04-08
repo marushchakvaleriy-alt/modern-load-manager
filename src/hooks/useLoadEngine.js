@@ -103,13 +103,35 @@ export const useLoadEngine = (projects, employees, absences = []) => {
   };
 
   const calculateEfficiency = (employeeName) => {
-    const employeeProjects = projects.filter(p =>
-      p.status === 'completed' &&
-      (p.assignedEmployee || '').trim().toLowerCase() === (employeeName || '').trim().toLowerCase()
-    );
+    const today = new Date();
+    const monthStart = new Date(today.getFullYear(), today.getMonth(), 1);
+
+    const employeeProjects = projects.filter((p) => {
+      if (
+        p.status !== 'completed' ||
+        (p.assignedEmployee || '').trim().toLowerCase() !== (employeeName || '').trim().toLowerCase()
+      ) {
+        return false;
+      }
+
+      if (!p.completedAt) return false;
+      const completedDate = parseDateOnly(normalizeImportedProjectDate(p.completedAt, { preferPast: true }));
+      if (!completedDate) return false;
+
+      return completedDate >= monthStart && completedDate <= today;
+    });
 
     const actualPoints = employeeProjects.reduce((sum, p) => sum + (p.points || 0), 0);
-    const expectedPoints = 42 * 22;
+
+    let elapsedWorkingDays = 0;
+    const cursor = new Date(monthStart);
+    while (cursor <= today) {
+      const day = cursor.getDay();
+      if (day !== 0 && day !== 6) elapsedWorkingDays += 1;
+      cursor.setDate(cursor.getDate() + 1);
+    }
+
+    const expectedPoints = CAPACITY_PER_DAY * elapsedWorkingDays;
 
     let totalRevisions = 0;
     let totalNew = 0;
@@ -149,9 +171,10 @@ export const useLoadEngine = (projects, employees, absences = []) => {
     });
 
     return {
-      efficiency: (actualPoints / expectedPoints) * 100,
+      efficiency: expectedPoints > 0 ? (actualPoints / expectedPoints) * 100 : 0,
       totalPoints: actualPoints,
       targetPoints: expectedPoints,
+      elapsedWorkingDays,
       advanced: {
         revisions: totalRevisions,
         newTasks: totalNew,
