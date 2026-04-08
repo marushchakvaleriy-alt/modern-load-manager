@@ -136,14 +136,14 @@ const Flow = () => {
 
   const capacityPoints = flowData.length
     ? [
-        {
-          x: 1,
-          y: isAllDirections ? flowData[0].capacity : flowData[0].estimatedCapacity
-        },
         ...flowData.map((day, index) => ({
-          x: index + 2,
+          x: index + 1,
           y: isAllDirections ? day.capacity : day.estimatedCapacity
-        }))
+        })),
+        {
+          x: flowData.length + 1,
+          y: isAllDirections ? flowData[flowData.length - 1].capacity : flowData[flowData.length - 1].estimatedCapacity
+        }
       ]
     : [];
 
@@ -212,7 +212,7 @@ const Flow = () => {
         borderWidth: 3,
         fill: false,
         tension: 0,
-        stepped: 'before'
+        stepped: 'after'
       }
     ]
   };
@@ -264,6 +264,9 @@ const Flow = () => {
         ticks: {
           color: '#64748b',
           font: { size: 10 },
+          autoSkip: false,
+          maxRotation: 0,
+          minRotation: 0,
           stepSize: 1,
           callback: (value) => {
             const index = Number(value) - 1;

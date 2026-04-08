@@ -356,8 +356,6 @@ export const useLoadEngine = (projects, employees, absences = []) => {
       });
 
       cursor.setDate(cursor.getDate() + 1);
-
-      cursor.setDate(cursor.getDate() + 1);
     }
 
     return flowData;
