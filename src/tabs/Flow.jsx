@@ -126,10 +126,16 @@ const Flow = () => {
 
   const lastDay = flowData[flowData.length - 1] || {};
 
-  const DAY_DATA_OFFSET = 1.28;
+  const BUFFER_X_OFFSET = 1.18;
+  const INPUT_X_OFFSET = 1.36;
+  const COMPLETED_X_OFFSET = 1.54;
+  const OVERDUE_X_OFFSET = 1.42;
 
-  const barPoints = flowData.map((day, index) => ({
-    x: index + DAY_DATA_OFFSET,
+  const dayPoints = flowData.map((day, index) => ({
+    bufferX: index + BUFFER_X_OFFSET,
+    inputX: index + INPUT_X_OFFSET,
+    completedX: index + COMPLETED_X_OFFSET,
+    overdueX: index + OVERDUE_X_OFFSET,
     input: day.input,
     completed: day.completed,
     buffer: day.buffer,
@@ -154,43 +160,43 @@ const Flow = () => {
       {
         type: 'bar',
         label: 'Вхід (поінти)',
-        data: barPoints.map((point) => ({ x: point.x, y: point.input })),
+        data: dayPoints.map((point) => ({ x: point.inputX, y: point.input })),
         backgroundColor: INPUT_COLOR,
         hoverBackgroundColor: '#4c4cff',
         borderRadius: 5,
         order: 2,
-        grouped: true,
-        barPercentage: 0.75,
-        maxBarThickness: 14
+        grouped: false,
+        barThickness: 12,
+        maxBarThickness: 12
       },
       {
         type: 'bar',
         label: 'Закрито',
-        data: barPoints.map((point) => ({ x: point.x, y: point.completed })),
+        data: dayPoints.map((point) => ({ x: point.completedX, y: point.completed })),
         backgroundColor: COMPLETED_COLOR,
         hoverBackgroundColor: '#ff4da6',
         borderRadius: 5,
         order: 3,
-        grouped: true,
-        barPercentage: 0.75,
-        maxBarThickness: 14
+        grouped: false,
+        barThickness: 12,
+        maxBarThickness: 12
       },
       {
         type: 'bar',
         label: 'Буфер (залишок)',
-        data: barPoints.map((point) => ({ x: point.x, y: point.buffer })),
+        data: dayPoints.map((point) => ({ x: point.bufferX, y: point.buffer })),
         backgroundColor: BUFFER_COLOR,
         hoverBackgroundColor: '#86efac',
         borderRadius: 5,
         order: 1,
-        grouped: true,
-        barPercentage: 0.88,
-        maxBarThickness: 20
+        grouped: false,
+        barThickness: 16,
+        maxBarThickness: 16
       },
       {
         type: 'line',
         label: 'Протерміновані',
-        data: barPoints.map((point) => ({ x: point.x, y: point.overdue })),
+        data: dayPoints.map((point) => ({ x: point.overdueX, y: point.overdue })),
         borderColor: OVERDUE_COLOR,
         backgroundColor: 'rgba(255, 0, 0, 0.14)',
         pointBackgroundColor: OVERDUE_COLOR,
@@ -247,7 +253,7 @@ const Flow = () => {
         callbacks: {
           title: (items) => {
             const x = items[0]?.parsed?.x ?? 1;
-            const index = Math.max(0, Math.min(flowData.length - 1, Math.ceil(x - DAY_DATA_OFFSET)));
+            const index = Math.max(0, Math.min(flowData.length - 1, Math.floor(x) - 1));
             return flowData[index]?.dateLabel || '';
           }
         }
