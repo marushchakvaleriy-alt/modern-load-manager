@@ -224,6 +224,12 @@ const Flow = () => {
     ]
   };
 
+  const getTooltipDayIndex = (x) => {
+    if (!Number.isFinite(x) || !flowData.length) return 0;
+    const clamped = Math.max(1, Math.min(flowData.length + 0.999, x));
+    return Math.max(0, Math.min(flowData.length - 1, Math.floor(clamped) - 1));
+  };
+
   const chartOptions = {
     responsive: true,
     maintainAspectRatio: false,
@@ -252,12 +258,12 @@ const Flow = () => {
         callbacks: {
           title: (items) => {
             const x = items[0]?.parsed?.x ?? 1;
-            const index = Math.max(0, Math.min(flowData.length - 1, Math.ceil(x) - 2));
+            const index = getTooltipDayIndex(x);
             return flowData[index]?.dateLabel || '';
           },
           label: (context) => {
             const x = context.parsed?.x ?? 1;
-            const index = Math.max(0, Math.min(flowData.length - 1, Math.ceil(x) - 2));
+            const index = getTooltipDayIndex(x);
             const day = flowData[index];
             if (!day) return '';
 
