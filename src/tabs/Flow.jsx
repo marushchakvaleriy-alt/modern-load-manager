@@ -126,10 +126,12 @@ const Flow = () => {
 
   const lastDay = flowData[flowData.length - 1] || {};
 
-  const BUFFER_X_OFFSET = 1.18;
-  const INPUT_X_OFFSET = 1.36;
-  const COMPLETED_X_OFFSET = 1.54;
-  const OVERDUE_X_OFFSET = 1.42;
+  // Each date label marks the left boundary of the day interval.
+  // All data for that day must live tightly inside [date, next date).
+  const BUFFER_X_OFFSET = 1.08;
+  const INPUT_X_OFFSET = 1.22;
+  const COMPLETED_X_OFFSET = 1.36;
+  const OVERDUE_X_OFFSET = 1.10;
 
   const dayPoints = flowData.map((day, index) => ({
     bufferX: index + BUFFER_X_OFFSET,
@@ -166,8 +168,8 @@ const Flow = () => {
         borderRadius: 5,
         order: 2,
         grouped: false,
-        barThickness: 12,
-        maxBarThickness: 12
+        barThickness: 10,
+        maxBarThickness: 10
       },
       {
         type: 'bar',
@@ -178,8 +180,8 @@ const Flow = () => {
         borderRadius: 5,
         order: 3,
         grouped: false,
-        barThickness: 12,
-        maxBarThickness: 12
+        barThickness: 10,
+        maxBarThickness: 10
       },
       {
         type: 'bar',
@@ -190,8 +192,8 @@ const Flow = () => {
         borderRadius: 5,
         order: 1,
         grouped: false,
-        barThickness: 16,
-        maxBarThickness: 16
+        barThickness: 14,
+        maxBarThickness: 14
       },
       {
         type: 'line',
