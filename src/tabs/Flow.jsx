@@ -254,6 +254,28 @@ const Flow = () => {
             const x = items[0]?.parsed?.x ?? 1;
             const index = Math.max(0, Math.min(flowData.length - 1, Math.ceil(x) - 2));
             return flowData[index]?.dateLabel || '';
+          },
+          label: (context) => {
+            const x = context.parsed?.x ?? 1;
+            const index = Math.max(0, Math.min(flowData.length - 1, Math.ceil(x) - 2));
+            const day = flowData[index];
+            if (!day) return '';
+
+            if (context.dataset.label === 'Вхід (поінти)') {
+              return `Вхід (поінти): ${day.input}`;
+            }
+            if (context.dataset.label === 'Закрито') {
+              return `Закрито: ${day.completed}`;
+            }
+            if (context.dataset.label === 'Буфер (залишок)') {
+              return `Буфер (залишок): ${day.buffer}`;
+            }
+            if (context.dataset.label === 'Протерміновані') {
+              return `Протерміновані: ${day.overdue}`;
+            }
+
+            const capacityValue = isAllDirections ? day.capacity : day.estimatedCapacity;
+            return `${context.dataset.label}: ${capacityValue}`;
           }
         }
       }
