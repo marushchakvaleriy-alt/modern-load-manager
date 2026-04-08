@@ -54,7 +54,7 @@ const Flow = () => {
   const [endDate, setEndDate] = useState(new Date().toISOString().split('T')[0]);
   const [startDate, setStartDate] = useState(() => {
     const initialStart = new Date();
-    initialStart.setDate(initialStart.getDate() - 20);
+    initialStart.setDate(1);
     return initialStart.toISOString().split('T')[0];
   });
 
