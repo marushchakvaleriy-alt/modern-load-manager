@@ -146,8 +146,16 @@ const Flow = () => {
 
   const capacityPoints = flowData.length
     ? [
-        ...flowData.map((day, index) => ({
-          x: index + 1,
+        {
+          x: 1,
+          y: isAllDirections ? flowData[0].capacity : flowData[0].estimatedCapacity
+        },
+        {
+          x: 2,
+          y: isAllDirections ? flowData[0].capacity : flowData[0].estimatedCapacity
+        },
+        ...flowData.slice(1).map((day, index) => ({
+          x: index + 3,
           y: isAllDirections ? day.capacity : day.estimatedCapacity
         })),
         {
@@ -222,7 +230,7 @@ const Flow = () => {
         borderWidth: 3,
         fill: false,
         tension: 0,
-        stepped: 'after'
+        stepped: 'before'
       }
     ]
   };
@@ -255,7 +263,7 @@ const Flow = () => {
         callbacks: {
           title: (items) => {
             const x = items[0]?.parsed?.x ?? 1;
-            const index = Math.max(0, Math.min(flowData.length - 1, Math.floor(x) - 1));
+            const index = Math.max(0, Math.min(flowData.length - 1, Math.ceil(x) - 2));
             return flowData[index]?.dateLabel || '';
           }
         }
