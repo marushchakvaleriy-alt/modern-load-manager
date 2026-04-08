@@ -293,7 +293,7 @@ const Flow = () => {
 
         <div className="flex flex-wrap items-center gap-6">
           <div className="flex items-center gap-3">
-            <span className="text-xs font-bold uppercase tracking-widest text-secondary">Дата з:</span>
+            <span className="text-sm font-semibold tracking-wide text-secondary">Дата з:</span>
             <input
               type="date"
               value={startDate}
@@ -304,7 +304,7 @@ const Flow = () => {
           </div>
 
           <div className="flex items-center gap-3">
-            <span className="text-xs font-bold uppercase tracking-widest text-secondary">Дата до:</span>
+            <span className="text-sm font-semibold tracking-wide text-secondary">Дата до:</span>
             <input
               type="date"
               value={endDate}
@@ -315,7 +315,7 @@ const Flow = () => {
           </div>
 
           <div className="flex items-center gap-3">
-            <span className="text-xs font-bold uppercase tracking-widest text-secondary">Напрямок:</span>
+            <span className="text-sm font-semibold tracking-wide text-secondary">Напрямок:</span>
             <select
               value={selectedDirection}
               onChange={(event) => setSelectedDirection(event.target.value)}
@@ -471,5 +471,6 @@ const Flow = () => {
 };
 
 export default Flow;
+
 
 
