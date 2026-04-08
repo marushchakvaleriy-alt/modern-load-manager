@@ -126,8 +126,10 @@ const Flow = () => {
 
   const lastDay = flowData[flowData.length - 1] || {};
 
+  const DAY_DATA_OFFSET = 1.28;
+
   const barPoints = flowData.map((day, index) => ({
-    x: index + 1.5,
+    x: index + DAY_DATA_OFFSET,
     input: day.input,
     completed: day.completed,
     buffer: day.buffer,
@@ -245,7 +247,7 @@ const Flow = () => {
         callbacks: {
           title: (items) => {
             const x = items[0]?.parsed?.x ?? 1;
-            const index = Math.max(0, Math.min(flowData.length - 1, Math.floor(x) - 1));
+            const index = Math.max(0, Math.min(flowData.length - 1, Math.ceil(x - DAY_DATA_OFFSET)));
             return flowData[index]?.dateLabel || '';
           }
         }
