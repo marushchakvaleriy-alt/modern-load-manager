@@ -1,6 +1,21 @@
 import * as XLSX from 'xlsx';
 import { normalizeImportedProjectDate } from './dateUtils';
 
+const normalizeKeyPart = (value) =>
+  String(value || '')
+    .trim()
+    .toLowerCase()
+    .replace(/[\s\u00A0]+/g, ' ')
+    .replace(/[|]/g, '')
+    .replace(/["'`]/g, '');
+
+export const getImportedProjectKey = (project) => {
+  const normalizedName = normalizeKeyPart(project?.name);
+  if (!normalizedName) return '';
+
+  return normalizedName;
+};
+
 export const processBitrixExcel = (file) => {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -108,6 +123,8 @@ export const processBitrixExcel = (file) => {
             type: 'bitrix',
             importedAt: new Date().toISOString()
           };
+
+          p.sourceKey = getImportedProjectKey(p);
 
           return p;
         });

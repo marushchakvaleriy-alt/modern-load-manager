@@ -254,13 +254,15 @@ export const useLoadEngine = (projects, employees, absences = []) => {
     return Object.values(itemMap).sort((a, b) => b.count - a.count);
   };
 
-  const calculateDailyFlow = (targetDirection = 'Всі', endDateParam = null) => {
-    const DAYS_TO_SHOW = 21;
-    const today = endDateParam ? new Date(endDateParam) : new Date();
-    today.setHours(23, 59, 59, 999);
+  const calculateDailyFlow = (targetDirection = 'Всі', startDateParam = null, endDateParam = null) => {
+    const rangeEnd = endDateParam ? new Date(endDateParam) : new Date();
+    rangeEnd.setHours(23, 59, 59, 999);
+    const rangeStart = startDateParam ? new Date(startDateParam) : new Date(rangeEnd);
+    if (!startDateParam) rangeStart.setDate(rangeEnd.getDate() - 20);
+    rangeStart.setHours(0, 0, 0, 0);
     
     const normTarget = String(targetDirection || '').trim().toLowerCase();
-    const isAll = normTarget === 'всі' || !normTarget;
+    const isAll = normTarget === '__all__' || normTarget === 'всі' || !normTarget;
 
     const filteredProjects = isAll
       ? projects 
@@ -271,10 +273,10 @@ export const useLoadEngine = (projects, employees, absences = []) => {
         });
 
     const flowData = [];
+    const cursor = new Date(rangeStart);
 
-    for (let i = DAYS_TO_SHOW - 1; i >= 0; i--) {
-      const d = new Date(today);
-      d.setDate(today.getDate() - i);
+    while (cursor <= rangeEnd) {
+      const d = new Date(cursor);
       const dayStart = new Date(d); dayStart.setHours(0, 0, 0, 0);
       const dayEnd   = new Date(d); dayEnd.setHours(23, 59, 59, 999);
       const isWorkingDay = d.getDay() !== 0 && d.getDay() !== 6;
@@ -300,17 +302,18 @@ export const useLoadEngine = (projects, employees, absences = []) => {
         return projectDay.getTime() === dayStart.getTime();
       }).reduce((sum, p) => sum + (Number(p.points) || 0), 0);
 
-      // 3. Buffer: backlog at end of day (created before end of day, not yet completed by end of day)
+      // 3. Buffer: what rolled into this day from yesterday.
+      // It includes tasks created before today started and not completed before today started.
       const bufferTasks = filteredProjects.filter(p => {
-        if (!p.startDate) return true; // Keep tasks without start date in buffer
+        if (!p.startDate) return true;
         const createdDate = parseDateOnly(normalizeImportedProjectDate(p.startDate, { preferPast: true }));
         if (!createdDate) return true;
-        if (createdDate > dayEnd) return false;
-        
+        if (createdDate >= dayStart) return false;
+
         if (p.status === 'completed' && p.completedAt) {
           const compDate = parseDateOnly(normalizeImportedProjectDate(p.completedAt, { preferPast: true }));
           if (!compDate) return true;
-          if (compDate <= dayEnd) return false;
+          if (compDate < dayStart) return false;
         }
         return true;
       });
@@ -351,6 +354,8 @@ export const useLoadEngine = (projects, employees, absences = []) => {
         capacity,
         performersCount: capacityCount
       });
+
+      cursor.setDate(cursor.getDate() + 1);
     }
 
     return flowData;

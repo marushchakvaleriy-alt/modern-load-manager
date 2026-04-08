@@ -1,9 +1,9 @@
-import React, { useState, useEffect } from 'react';
-import { collection, onSnapshot, addDoc, deleteDoc, doc, serverTimestamp, writeBatch, getDocs } from 'firebase/firestore';
+import React, { useEffect, useState } from 'react';
+import { addDoc, collection, deleteDoc, deleteField, doc, getDocs, onSnapshot, serverTimestamp, writeBatch } from 'firebase/firestore';
+import { Plus, Trash2, Upload } from 'lucide-react';
 import { db } from '../lib/firebase';
+import { getImportedProjectKey, processBitrixExcel } from '../lib/excelUtils';
 import { useAuth } from '../store/useAuth';
-import { processBitrixExcel } from '../lib/excelUtils';
-import { Plus, Upload, Trash2 } from 'lucide-react';
 import { triggerGlobalSync } from '../lib/syncUtils';
 
 const Projects = ({ projectFilter, setProjectFilter }) => {
@@ -11,25 +11,30 @@ const Projects = ({ projectFilter, setProjectFilter }) => {
   const { role } = useAuth();
   const [showAddModal, setShowAddModal] = useState(false);
   const [newProject, setNewProject] = useState({ name: '', points: 0, assignedEmployee: '', status: 'active' });
-
-  const formatDate = (dateStr) => {
-    if (!dateStr || dateStr === '-') return '-';
-    const parts = dateStr.split('-');
-    if (parts.length !== 3) return dateStr;
-    const [y, m, d] = parts;
-    return `${d}.${m}.${y}`;
-  };
-
   const [localFilter, setLocalFilter] = useState('all');
+
   const currentFilter = projectFilter || localFilter;
   const setCurrentFilter = setProjectFilter || setLocalFilter;
 
   useEffect(() => {
     const unsubscribe = onSnapshot(collection(db, 'projects'), (snapshot) => {
-      setProjects(snapshot.docs.map((projectDoc) => ({ id: projectDoc.id, ...projectDoc.data() })));
+      setProjects(
+        snapshot.docs.map((projectDoc) => ({
+          ...projectDoc.data(),
+          id: projectDoc.id
+        }))
+      );
     });
     return () => unsubscribe();
   }, []);
+
+  const formatDate = (dateStr) => {
+    if (!dateStr || dateStr === '-') return '-';
+    const parts = String(dateStr).split('-');
+    if (parts.length !== 3) return dateStr;
+    const [year, month, day] = parts;
+    return `${day}.${month}.${year}`;
+  };
 
   const handleFileUpload = async (event) => {
     const file = event.target.files[0];
@@ -39,27 +44,95 @@ const Projects = ({ projectFilter, setProjectFilter }) => {
       const imported = await processBitrixExcel(file);
 
       if (!imported || imported.length === 0) {
-        alert('Файл порожній або має непідтримуваний формат!');
+        alert('Файл порожній або має непідтримуваний формат.');
         return;
       }
 
-      const batch = writeBatch(db);
+      const existingSnapshot = await getDocs(collection(db, 'projects'));
+      const existingProjects = existingSnapshot.docs.map((projectDoc) => ({
+        ...projectDoc.data(),
+        docId: projectDoc.id
+      }));
+
+      const existingBitrixByKey = new Map();
+      const duplicateExistingIds = [];
+
+      existingProjects.forEach((project) => {
+        if (project.type !== 'bitrix') return;
+
+        const sourceKey = getImportedProjectKey(project);
+        if (!sourceKey) return;
+
+        if (!existingBitrixByKey.has(sourceKey)) {
+          existingBitrixByKey.set(sourceKey, project);
+        } else {
+          duplicateExistingIds.push(project.docId);
+        }
+      });
+
+      const importedByKey = new Map();
       imported.forEach((project) => {
-        const newDocRef = doc(collection(db, 'projects'));
-        batch.set(newDocRef, { ...project, createdAt: serverTimestamp() });
+        const sourceKey = getImportedProjectKey(project);
+        if (!sourceKey) return;
+        importedByKey.set(sourceKey, { ...project, sourceKey });
+      });
+
+      const batch = writeBatch(db);
+      let createdCount = 0;
+      let updatedCount = 0;
+
+      importedByKey.forEach((project, sourceKey) => {
+        const existingProject = existingBitrixByKey.get(sourceKey);
+        const { id: importedBitrixId, ...projectData } = project;
+
+        if (existingProject) {
+          batch.set(
+            doc(db, 'projects', existingProject.docId),
+            {
+              ...projectData,
+              externalId: importedBitrixId,
+              id: deleteField(),
+              createdAt: existingProject.createdAt || serverTimestamp(),
+              importedAt: new Date().toISOString(),
+              updatedAt: serverTimestamp()
+            },
+            { merge: true }
+          );
+          updatedCount++;
+        } else {
+          const newDocRef = doc(collection(db, 'projects'));
+          batch.set(newDocRef, {
+            ...projectData,
+            externalId: importedBitrixId,
+            sourceKey,
+            createdAt: serverTimestamp(),
+            importedAt: new Date().toISOString(),
+            updatedAt: serverTimestamp()
+          });
+          createdCount++;
+        }
+      });
+
+      duplicateExistingIds.forEach((projectId) => {
+        batch.delete(doc(db, 'projects', projectId));
       });
 
       await batch.commit();
 
       const syncResult = await triggerGlobalSync();
-      const added = syncResult?.diagnostics?.added || 0;
-      const deleted = syncResult?.diagnostics?.deleted || 0;
+      const addedEmployees = syncResult?.diagnostics?.added || 0;
+      const deletedEmployees = syncResult?.diagnostics?.deleted || 0;
 
-      const messages = [];
-      if (added > 0) messages.push(`додано ${added} нових виконавців`);
-      if (deleted > 0) messages.push(`видалено ${deleted} виконавців, яких немає у звіті`);
+      const summary = [
+        `оброблено задач: ${importedByKey.size}`,
+        createdCount > 0 ? `створено: ${createdCount}` : null,
+        updatedCount > 0 ? `оновлено: ${updatedCount}` : null,
+        duplicateExistingIds.length > 0 ? `прибрано дублів: ${duplicateExistingIds.length}` : null,
+        addedEmployees > 0 ? `додано виконавців: ${addedEmployees}` : null,
+        deletedEmployees > 0 ? `видалено виконавців: ${deletedEmployees}` : null
+      ].filter(Boolean);
 
-      alert(`Успішно імпортовано ${imported.length} проєктів${messages.length ? `. ${messages.join(', ')}.` : '!'}`);
+      alert(`Імпорт завершено.\n${summary.join('\n')}`);
     } catch (err) {
       console.error(err);
       alert(`Помилка імпорту: ${err.message || 'Невідома помилка'}`);
@@ -88,7 +161,11 @@ const Projects = ({ projectFilter, setProjectFilter }) => {
   };
 
   const clearAllProjects = async () => {
-    if (window.confirm('ОБЕРЕЖНО! Ви впевнені, що хочете видалити ВСІ проєкти з бази даних? Цю дію неможливо скасувати.')) {
+    if (
+      window.confirm(
+        'ОБЕРЕЖНО! Ви впевнені, що хочете видалити всі проєкти з бази даних? Цю дію неможливо скасувати.'
+      )
+    ) {
       const querySnapshot = await getDocs(collection(db, 'projects'));
       const batch = writeBatch(db);
       querySnapshot.docs.forEach((projectDoc) => {
@@ -96,7 +173,7 @@ const Projects = ({ projectFilter, setProjectFilter }) => {
       });
       await batch.commit();
       await triggerGlobalSync();
-      alert('Всі проєкти успішно видалено!');
+      alert('Всі проєкти успішно видалено.');
     }
   };
 
@@ -114,7 +191,9 @@ const Projects = ({ projectFilter, setProjectFilter }) => {
     if (currentFilter === 'completedThisMonth') {
       if (project.status !== 'completed') return false;
       const now = new Date();
-      const dateStr = project.importedAt || (project.createdAt?.toDate ? project.createdAt.toDate().toISOString() : new Date().toISOString());
+      const dateStr =
+        project.importedAt ||
+        (project.createdAt?.toDate ? project.createdAt.toDate().toISOString() : new Date().toISOString());
       const parsedDate = new Date(dateStr);
       if (Number.isNaN(parsedDate.getTime())) return false;
       return parsedDate.getMonth() === now.getMonth() && parsedDate.getFullYear() === now.getFullYear();
@@ -160,7 +239,7 @@ const Projects = ({ projectFilter, setProjectFilter }) => {
           { id: 'active', label: 'В роботі' },
           { id: 'waiting', label: 'В очікуванні' },
           { id: 'overdue', label: 'Протерміновані' },
-          { id: 'completedThisMonth', label: 'Закриті (Цей місяць)' }
+          { id: 'completedThisMonth', label: 'Закриті (цей місяць)' }
         ].map((tab) => (
           <button
             key={tab.id}
@@ -206,16 +285,24 @@ const Projects = ({ projectFilter, setProjectFilter }) => {
                   </span>
                 </td>
                 <td className="px-6 py-5">
-                  <span className={`badge ${
-                    project.status === 'active' ? 'bg-success/10 text-success ring-1 ring-success/20'
-                    : project.status === 'waiting' ? 'bg-accent/10 text-accent ring-1 ring-accent/20'
-                    : project.status === 'overdue' ? 'bg-danger/10 text-danger ring-1 ring-danger/20'
-                    : 'bg-secondary/10 text-secondary ring-1 ring-secondary/20'
-                  }`}>
-                    {project.status === 'active' ? 'В роботі'
-                      : project.status === 'waiting' ? 'Очікує'
-                      : project.status === 'overdue' ? 'Протерміновано'
-                      : project.status}
+                  <span
+                    className={`badge ${
+                      project.status === 'active'
+                        ? 'bg-success/10 text-success ring-1 ring-success/20'
+                        : project.status === 'waiting'
+                          ? 'bg-accent/10 text-accent ring-1 ring-accent/20'
+                          : project.status === 'overdue'
+                            ? 'bg-danger/10 text-danger ring-1 ring-danger/20'
+                            : 'bg-secondary/10 text-secondary ring-1 ring-secondary/20'
+                    }`}
+                  >
+                    {project.status === 'active'
+                      ? 'В роботі'
+                      : project.status === 'waiting'
+                        ? 'Очікує'
+                        : project.status === 'overdue'
+                          ? 'Протерміновано'
+                          : project.status}
                   </span>
                 </td>
                 <td className="px-6 py-4 text-secondary text-sm">{formatDate(project.deadline)}</td>
@@ -235,7 +322,7 @@ const Projects = ({ projectFilter, setProjectFilter }) => {
       {showAddModal && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
           <div className="glass-card bg-surface p-8 w-full max-w-lg">
-            <h3 className="text-xl font-bold mb-6">Новий проєкт / Бронювання</h3>
+            <h3 className="text-xl font-bold mb-6">Новий проєкт / бронювання</h3>
             <form onSubmit={handleAddProject} className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-secondary mb-1">Назва</label>
@@ -266,8 +353,12 @@ const Projects = ({ projectFilter, setProjectFilter }) => {
                 </div>
               </div>
               <div className="flex justify-end gap-3 mt-8">
-                <button type="button" onClick={() => setShowAddModal(false)} className="px-4 py-2 text-secondary hover:text-white">Скасувати</button>
-                <button type="submit" className="btn-primary">Зберегти</button>
+                <button type="button" onClick={() => setShowAddModal(false)} className="px-4 py-2 text-secondary hover:text-white">
+                  Скасувати
+                </button>
+                <button type="submit" className="btn-primary">
+                  Зберегти
+                </button>
               </div>
             </form>
           </div>
