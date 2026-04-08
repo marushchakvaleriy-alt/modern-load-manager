@@ -1,4 +1,4 @@
-import { useCallback, useMemo } from 'react';
+﻿import { useCallback, useMemo } from 'react';
 import { normalizeImportedProjectDate, parseDateOnly } from '../lib/dateUtils';
 
 /**
@@ -99,7 +99,7 @@ export const useLoadEngine = (projects, employees, absences = []) => {
       String(p.taskType || ''),    // new field from column O
       String(p.category || ''),    // old field (was previously mapped)
     ];
-    return checks.some(v => v.toLowerCase().includes('правк'));
+    return checks.some(v => v.toLowerCase().includes('РїСЂР°РІРє'));
   };
 
   const calculateEfficiency = (employeeName) => {
@@ -164,22 +164,22 @@ export const useLoadEngine = (projects, employees, absences = []) => {
 
   const calculateDirectionStats = () => {
     const rawDirections = [...new Set(projects.map(p => p.direction).filter(Boolean))];
-    const directions = rawDirections.length > 0 ? rawDirections : ['Загальне'];
+    const directions = rawDirections.length > 0 ? rawDirections : ['Р—Р°РіР°Р»СЊРЅРµ'];
     
-    // If we have some directions but also some projects without direction, add 'Загальне' to the list
+    // If we have some directions but also some projects without direction, add 'Р—Р°РіР°Р»СЊРЅРµ' to the list
     if (rawDirections.length > 0 && projects.some(p => !p.direction)) {
-      if (!directions.includes('Загальне')) directions.push('Загальне');
+      if (!directions.includes('Р—Р°РіР°Р»СЊРЅРµ')) directions.push('Р—Р°РіР°Р»СЊРЅРµ');
     }
 
     return directions.map(dir => {
-      const isZagalne = dir === 'Загальне';
+      const isZagalne = dir === 'Р—Р°РіР°Р»СЊРЅРµ';
       const dirCompleted = projects.filter(p => 
         p.status === 'completed' && 
-        (isZagalne ? (!p.direction || p.direction === 'Загальне') : p.direction === dir)
+        (isZagalne ? (!p.direction || p.direction === 'Р—Р°РіР°Р»СЊРЅРµ') : p.direction === dir)
       );
       const dirActive = projects.filter(p => 
         (p.status === 'active' || p.status === 'waiting') && 
-        (isZagalne ? (!p.direction || p.direction === 'Загальне') : p.direction === dir)
+        (isZagalne ? (!p.direction || p.direction === 'Р—Р°РіР°Р»СЊРЅРµ') : p.direction === dir)
       );
 
       const completedPoints = dirCompleted.reduce((sum, p) => sum + (p.points || 0), 0);
@@ -254,7 +254,7 @@ export const useLoadEngine = (projects, employees, absences = []) => {
     return Object.values(itemMap).sort((a, b) => b.count - a.count);
   };
 
-  const calculateDailyFlow = (targetDirection = 'Всі', startDateParam = null, endDateParam = null) => {
+  const calculateDailyFlow = (targetDirection = 'Р’СЃС–', startDateParam = null, endDateParam = null) => {
     const rangeEnd = endDateParam ? new Date(endDateParam) : new Date();
     rangeEnd.setHours(23, 59, 59, 999);
     const rangeStart = startDateParam ? new Date(startDateParam) : new Date(rangeEnd);
@@ -262,13 +262,13 @@ export const useLoadEngine = (projects, employees, absences = []) => {
     rangeStart.setHours(0, 0, 0, 0);
     
     const normTarget = String(targetDirection || '').trim().toLowerCase();
-    const isAll = normTarget === '__all__' || normTarget === 'всі' || !normTarget;
+    const isAll = normTarget === '__all__' || normTarget === 'РІСЃС–' || !normTarget;
 
     const filteredProjects = isAll
       ? projects 
       : projects.filter(p => {
-          const dir = String(p.direction || 'Загальне').trim().toLowerCase();
-          if (normTarget === 'загальне') return !p.direction || dir === 'загальне';
+          const dir = String(p.direction || 'Р—Р°РіР°Р»СЊРЅРµ').trim().toLowerCase();
+          if (normTarget === 'Р·Р°РіР°Р»СЊРЅРµ') return !p.direction || dir === 'Р·Р°РіР°Р»СЊРЅРµ';
           return dir === normTarget;
         });
 
@@ -278,6 +278,8 @@ export const useLoadEngine = (projects, employees, absences = []) => {
     while (cursor <= rangeEnd) {
       const d = new Date(cursor);
       const dayStart = new Date(d); dayStart.setHours(0, 0, 0, 0);
+      const dayEnd   = new Date(d); dayEnd.setHours(23, 59, 59, 999);
+      const dateStr = d.toISOString().split('T')[0];
       const dayEnd   = new Date(d); dayEnd.setHours(23, 59, 59, 999);
       const isWorkingDay = d.getDay() !== 0 && d.getDay() !== 6;
       const dateStr = d.toISOString().split('T')[0];
@@ -329,7 +331,7 @@ export const useLoadEngine = (projects, employees, absences = []) => {
       }).reduce((sum, p) => sum + (Number(p.points) || 0), 0);
 
       const dailyPerformers = new Set(
-        bufferTasks.filter(p => p.assignedEmployee && p.assignedEmployee !== 'Не призначено')
+        bufferTasks.filter(p => p.assignedEmployee && p.assignedEmployee !== 'РќРµ РїСЂРёР·РЅР°С‡РµРЅРѕ')
           .map(p => p.assignedEmployee)
       );
       const assignedPerformersCount = dailyPerformers.size;
@@ -339,7 +341,7 @@ export const useLoadEngine = (projects, employees, absences = []) => {
       // effectively identifying "team size" from the task list.
       const teamSize = employees.length > 0 
         ? baseEmployeeCount 
-        : Math.max(assignedPerformersCount, new Set(projects.map(p => p.assignedEmployee).filter(n => n && n !== 'Не призначено')).size);
+        : Math.max(assignedPerformersCount, new Set(projects.map(p => p.assignedEmployee).filter(n => n && n !== 'РќРµ РїСЂРёР·РЅР°С‡РµРЅРѕ')).size);
 
       const capacityCount = isAll ? teamSize : Math.min(assignedPerformersCount, baseEmployeeCount);
       const capacity = isWorkingDay ? (capacityCount * CAPACITY_PER_DAY) : 0;
@@ -354,6 +356,8 @@ export const useLoadEngine = (projects, employees, absences = []) => {
         capacity,
         performersCount: capacityCount
       });
+
+      cursor.setDate(cursor.getDate() + 1);
 
       cursor.setDate(cursor.getDate() + 1);
     }

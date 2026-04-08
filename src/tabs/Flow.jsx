@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+﻿import React, { useEffect, useMemo, useState } from 'react';
 import { collection, onSnapshot, query } from 'firebase/firestore';
 import { Bar } from 'react-chartjs-2';
 import {
@@ -151,7 +151,7 @@ const Flow = () => {
     datasets: [
       {
         type: 'bar',
-        label: 'Вхід (Поінти)',
+        label: 'Вхід (поінти)',
         data: barPoints.map((point) => ({ x: point.x, y: point.input })),
         backgroundColor: INPUT_COLOR,
         hoverBackgroundColor: '#4c4cff',
@@ -175,7 +175,7 @@ const Flow = () => {
       },
       {
         type: 'bar',
-        label: 'Буфер (Залишок)',
+        label: 'Буфер (залишок)',
         data: barPoints.map((point) => ({ x: point.x, y: point.buffer })),
         backgroundColor: BUFFER_COLOR,
         hoverBackgroundColor: '#86efac',
@@ -201,7 +201,7 @@ const Flow = () => {
       },
       {
         type: 'line',
-        label: isAllDirections ? 'Потужність (Capacity)' : 'Оцінена потужність',
+        label: isAllDirections ? 'Потужність' : 'Оцінена потужність',
         data: capacityPoints,
         borderColor: CAPACITY_COLOR,
         backgroundColor: 'rgba(245, 158, 11, 0.10)',
@@ -293,7 +293,7 @@ const Flow = () => {
 
         <div className="flex flex-wrap items-center gap-6">
           <div className="flex items-center gap-3">
-            <span className="text-sm font-semibold tracking-wide text-secondary">���� �:</span>
+            <span className="text-sm font-semibold tracking-wide text-secondary">Дата з:</span>
             <input
               type="date"
               value={startDate}
@@ -304,7 +304,7 @@ const Flow = () => {
           </div>
 
           <div className="flex items-center gap-3">
-            <span className="text-sm font-semibold tracking-wide text-secondary">���� ��:</span>
+            <span className="text-sm font-semibold tracking-wide text-secondary">Дата до:</span>
             <input
               type="date"
               value={endDate}
@@ -315,7 +315,7 @@ const Flow = () => {
           </div>
 
           <div className="flex items-center gap-3">
-            <span className="text-sm font-semibold tracking-wide text-secondary">��������:</span>
+            <span className="text-sm font-semibold tracking-wide text-secondary">Напрямок:</span>
             <select
               value={selectedDirection}
               onChange={(event) => setSelectedDirection(event.target.value)}
@@ -333,8 +333,8 @@ const Flow = () => {
 
       {!isAllDirections && (
         <div className="glass-card p-4 text-sm text-secondary">
-          Розподіл для напрямку зараз рахується як аналітична оцінка: <span className="text-white font-semibold">буфер + протерміновані</span>
-          . Вона не дублює відділ, а ділить загальний ресурс пропорційно частці навантаження напрямку.
+          Розподіл для напрямку зараз рахується як аналітична оцінка: <span className="text-white font-semibold">буфер + протерміновані</span>.
+          Вона не дублює відділ, а ділить загальний ресурс пропорційно частці навантаження напрямку.
         </div>
       )}
 
@@ -417,7 +417,7 @@ const Flow = () => {
         <div className="flex justify-between items-center mb-8">
           <h3 className="text-xl font-bold flex items-center gap-2">
             <Activity size={20} className="text-primary" />
-            Динаміка пропускної здатності (21 день) — {selectedDirectionLabel} ({flowData[0]?.date?.toLocaleDateString('uk-UA') || '—'} — {flowData[flowData.length - 1]?.date?.toLocaleDateString('uk-UA') || '—'})
+            Динаміка пропускної здатності — {selectedDirectionLabel} ({flowData[0]?.date?.toLocaleDateString('uk-UA') || '—'} — {flowData[flowData.length - 1]?.date?.toLocaleDateString('uk-UA') || '—'})
           </h3>
         </div>
         <div className="h-[450px]">
@@ -471,6 +471,3 @@ const Flow = () => {
 };
 
 export default Flow;
-
-
-
