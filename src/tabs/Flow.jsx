@@ -145,13 +145,16 @@ const Flow = () => {
   }));
 
   const capacityPoints = flowData.length
-    ? flowData.flatMap((day, index) => {
-        const value = isAllDirections ? day.capacity : day.estimatedCapacity;
-        return [
-          { x: index + 1, y: value },
-          { x: index + 2, y: value }
-        ];
-      })
+    ? [
+        ...flowData.map((day, index) => ({
+          x: index + 1,
+          y: isAllDirections ? day.capacity : day.estimatedCapacity
+        })),
+        {
+          x: flowData.length + 1,
+          y: isAllDirections ? flowData[flowData.length - 1].capacity : flowData[flowData.length - 1].estimatedCapacity
+        }
+      ]
     : [];
 
   const chartData = {
