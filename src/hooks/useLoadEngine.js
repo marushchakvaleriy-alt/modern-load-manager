@@ -8,6 +8,27 @@ import { normalizeImportedProjectDate, parseDateOnly } from '../lib/dateUtils';
 export const useLoadEngine = (projects, employees, absences = []) => {
   const CAPACITY_PER_DAY = 42;
 
+  const parseProjectDate = useCallback(
+    (value, options = {}) => {
+      if (!value) return null;
+      return parseDateOnly(normalizeImportedProjectDate(value, options));
+    },
+    []
+  );
+
+  const createDateRange = useCallback((startDateParam = null, endDateParam = null) => {
+    const today = new Date();
+    const rangeEnd = endDateParam ? new Date(endDateParam) : today;
+    rangeEnd.setHours(23, 59, 59, 999);
+
+    const rangeStart = startDateParam
+      ? new Date(startDateParam)
+      : new Date(rangeEnd.getFullYear(), rangeEnd.getMonth(), 1);
+    rangeStart.setHours(0, 0, 0, 0);
+
+    return { rangeStart, rangeEnd };
+  }, []);
+
   // Helper: check if a given date string falls within any absence for an employee
   const isEmployeeAbsent = useCallback(
     (empId, dateStr) => absences.some(a => a.employeeId === empId && a.startDate <= dateStr && a.endDate >= dateStr),
@@ -102,9 +123,8 @@ export const useLoadEngine = (projects, employees, absences = []) => {
     return checks.some(v => v.toLowerCase().includes('правк'));
   };
 
-  const calculateEfficiency = (employeeName) => {
-    const today = new Date();
-    const monthStart = new Date(today.getFullYear(), today.getMonth(), 1);
+  const calculateEfficiency = (employeeName, startDateParam = null, endDateParam = null) => {
+    const { rangeStart, rangeEnd } = createDateRange(startDateParam, endDateParam);
 
     const employeeProjects = projects.filter((p) => {
       if (
@@ -115,17 +135,17 @@ export const useLoadEngine = (projects, employees, absences = []) => {
       }
 
       if (!p.completedAt) return false;
-      const completedDate = parseDateOnly(normalizeImportedProjectDate(p.completedAt, { preferPast: true }));
+      const completedDate = parseProjectDate(p.completedAt, { preferPast: true });
       if (!completedDate) return false;
 
-      return completedDate >= monthStart && completedDate <= today;
+      return completedDate >= rangeStart && completedDate <= rangeEnd;
     });
 
     const actualPoints = employeeProjects.reduce((sum, p) => sum + (p.points || 0), 0);
 
     let elapsedWorkingDays = 0;
-    const cursor = new Date(monthStart);
-    while (cursor <= today) {
+    const cursor = new Date(rangeStart);
+    while (cursor <= rangeEnd) {
       const day = cursor.getDay();
       if (day !== 0 && day !== 6) elapsedWorkingDays += 1;
       cursor.setDate(cursor.getDate() + 1);
@@ -185,7 +205,8 @@ export const useLoadEngine = (projects, employees, absences = []) => {
     };
   };
 
-  const calculateDirectionStats = () => {
+  const calculateDirectionStats = (startDateParam = null, endDateParam = null) => {
+    const { rangeStart, rangeEnd } = createDateRange(startDateParam, endDateParam);
     const rawDirections = [...new Set(projects.map(p => p.direction).filter(Boolean))];
     const directions = rawDirections.length > 0 ? rawDirections : ['Загальне'];
     
@@ -198,11 +219,22 @@ export const useLoadEngine = (projects, employees, absences = []) => {
       const isZagalne = dir === 'Загальне';
       const dirCompleted = projects.filter(p => 
         p.status === 'completed' && 
-        (isZagalne ? (!p.direction || p.direction === 'Загальне') : p.direction === dir)
+        (isZagalne ? (!p.direction || p.direction === 'Загальне') : p.direction === dir) &&
+        (() => {
+          const completedDate = parseProjectDate(p.completedAt, { preferPast: true });
+          return completedDate && completedDate >= rangeStart && completedDate <= rangeEnd;
+        })()
       );
       const dirActive = projects.filter(p => 
-        (p.status === 'active' || p.status === 'waiting') && 
-        (isZagalne ? (!p.direction || p.direction === 'Загальне') : p.direction === dir)
+        (p.status === 'active' || p.status === 'waiting' || p.status === 'overdue') && 
+        (isZagalne ? (!p.direction || p.direction === 'Загальне') : p.direction === dir) &&
+        (() => {
+          const createdDate = parseProjectDate(p.startDate, { preferPast: true });
+          const completedDate = parseProjectDate(p.completedAt, { preferPast: true });
+          const createdOk = !createdDate || createdDate <= rangeEnd;
+          const notClosedBeforeEnd = !completedDate || completedDate > rangeEnd;
+          return createdOk && notClosedBeforeEnd;
+        })()
       );
 
       const completedPoints = dirCompleted.reduce((sum, p) => sum + (p.points || 0), 0);
@@ -234,10 +266,15 @@ export const useLoadEngine = (projects, employees, absences = []) => {
     }).sort((a, b) => b.completedPoints - a.completedPoints);
   };
 
-  const calculateItemStats = () => {
+  const calculateItemStats = (startDateParam = null, endDateParam = null) => {
+    const { rangeStart, rangeEnd } = createDateRange(startDateParam, endDateParam);
     const itemMap = {};
     
-    projects.filter(p => p.status === 'completed').forEach(p => {
+    projects.filter((p) => {
+      if (p.status !== 'completed') return false;
+      const completedDate = parseProjectDate(p.completedAt, { preferPast: true });
+      return completedDate && completedDate >= rangeStart && completedDate <= rangeEnd;
+    }).forEach(p => {
       const itemsStr = String(p.itemsInfo || '');
       if (!itemsStr) return;
 
@@ -308,7 +345,7 @@ export const useLoadEngine = (projects, employees, absences = []) => {
       // 1. Input: created on this exact day
       const input = filteredProjects.filter(p => {
         if (!p.startDate) return false;
-        const createdDate = parseDateOnly(normalizeImportedProjectDate(p.startDate, { preferPast: true }));
+        const createdDate = parseProjectDate(p.startDate, { preferPast: true });
         if (!createdDate) return false;
         const projectDay = new Date(createdDate);
         projectDay.setHours(0, 0, 0, 0);
@@ -334,7 +371,7 @@ export const useLoadEngine = (projects, employees, absences = []) => {
         if (createdDate >= dayStart) return false;
 
         if (p.status === 'completed' && p.completedAt) {
-          const compDate = parseDateOnly(normalizeImportedProjectDate(p.completedAt, { preferPast: true }));
+          const compDate = parseProjectDate(p.completedAt, { preferPast: true });
           if (!compDate) return true;
           if (compDate < dayStart) return false;
         }
@@ -346,7 +383,7 @@ export const useLoadEngine = (projects, employees, absences = []) => {
       // 4. Overdue: in buffer and passed deadline
       const overdue = bufferTasks.filter(p => {
         if (!p.deadline) return false;
-        const deadlineDate = parseDateOnly(normalizeImportedProjectDate(p.deadline));
+        const deadlineDate = parseProjectDate(p.deadline);
         if (!deadlineDate) return false;
         return deadlineDate < dayEnd;
       }).reduce((sum, p) => sum + (Number(p.points) || 0), 0);

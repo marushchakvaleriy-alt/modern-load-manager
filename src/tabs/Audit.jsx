@@ -12,9 +12,18 @@ import {
 import { db } from '../lib/firebase';
 import { useLoadEngine } from '../hooks/useLoadEngine';
 
+const getMonthStartValue = () => {
+  const today = new Date();
+  return new Date(today.getFullYear(), today.getMonth(), 1).toISOString().split('T')[0];
+};
+
+const getTodayValue = () => new Date().toISOString().split('T')[0];
+
 const Audit = () => {
   const [projects, setProjects] = useState([]);
   const [employees, setEmployees] = useState([]);
+  const [startDate, setStartDate] = useState(getMonthStartValue);
+  const [endDate, setEndDate] = useState(getTodayValue);
   const { calculateEfficiency, CAPACITY_PER_DAY } = useLoadEngine(projects, employees);
 
   useEffect(() => {
@@ -33,13 +42,38 @@ const Audit = () => {
 
   return (
     <div className="space-y-8">
-      <header className="mb-10">
-        <h2 className="bg-gradient-to-r from-white to-white/40 bg-clip-text text-4xl font-bold tracking-tight text-transparent">
-          Аудит виконання
-        </h2>
-        <p className="mt-2 text-lg text-secondary">
-          Поточний прогрес за місяць відносно плану на сьогодні
-        </p>
+      <header className="mb-10 flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
+        <div>
+          <h2 className="bg-gradient-to-r from-white to-white/40 bg-clip-text text-4xl font-bold tracking-tight text-transparent">
+            Аудит виконання
+          </h2>
+          <p className="mt-2 text-lg text-secondary">
+            Поточний прогрес за вибраний період відносно плану
+          </p>
+        </div>
+
+        <div className="flex flex-col gap-4 sm:flex-row">
+          <label className="space-y-2">
+            <span className="text-xs font-bold uppercase tracking-widest text-secondary">Дата з</span>
+            <input
+              type="date"
+              value={startDate}
+              max={endDate}
+              onChange={(e) => setStartDate(e.target.value)}
+              className="rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 text-sm font-semibold text-white outline-none transition focus:border-primary/50"
+            />
+          </label>
+          <label className="space-y-2">
+            <span className="text-xs font-bold uppercase tracking-widest text-secondary">Дата до</span>
+            <input
+              type="date"
+              value={endDate}
+              min={startDate}
+              onChange={(e) => setEndDate(e.target.value)}
+              className="rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 text-sm font-semibold text-white outline-none transition focus:border-primary/50"
+            />
+          </label>
+        </div>
       </header>
 
       <div className="grid grid-cols-1 gap-6">
@@ -51,7 +85,7 @@ const Audit = () => {
         )}
 
         {employees.map((employee) => {
-          const stats = calculateEfficiency(employee.name);
+          const stats = calculateEfficiency(employee.name, startDate, endDate);
           const progress = Math.round(stats.efficiency);
           const progressBarWidth = Math.min(progress, 100);
           const progressTone = progress >= 100 ? 'text-success' : 'text-accent';
@@ -79,7 +113,7 @@ const Audit = () => {
                 <div className="space-y-2">
                   <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.2em] text-secondary">
                     <TrendingUp size={12} className="text-primary" />
-                    <span>Виконано за місяць</span>
+                    <span>Виконано за період</span>
                   </div>
                   <p className="text-3xl font-bold tracking-tight">
                     {stats.totalPoints}{' '}
@@ -98,7 +132,7 @@ const Audit = () => {
                 <div className="space-y-2">
                   <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.2em] text-secondary">
                     <CalendarDays size={12} className="text-secondary" />
-                    <span>План на сьогодні</span>
+                    <span>План за період</span>
                   </div>
                   <p className="text-3xl font-bold tracking-tight">
                     {stats.targetPoints}{' '}
@@ -158,7 +192,7 @@ const Audit = () => {
                   />
                 </div>
                 <p className="mt-3 text-xs text-secondary">
-                  Норма дня: {CAPACITY_PER_DAY} поінти. Тут показано прогрес місяця на поточну дату.
+                  Норма дня: {CAPACITY_PER_DAY} поінти. Тут показано прогрес за вибраний період.
                 </p>
               </div>
             </div>
