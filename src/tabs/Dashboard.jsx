@@ -22,6 +22,7 @@ import {
   PieChart,
   Layers3
 } from 'lucide-react';
+import { normalizeImportedProjectDate, parseDateOnly } from '../lib/dateUtils';
 
 ChartJS.register(
   CategoryScale,
@@ -91,13 +92,12 @@ const Dashboard = ({ setActiveTab, setProjectFilter }) => {
     return projects
       .filter((project) => {
         if (project.status !== 'completed') return false;
+        if (!project.completedAt) return false;
 
-        const dateStr =
-          project.importedAt ||
-          (project.createdAt?.toDate ? project.createdAt.toDate().toISOString() : new Date().toISOString());
-
-        const parsedDate = new Date(dateStr);
-        if (Number.isNaN(parsedDate.getTime())) return false;
+        const parsedDate = parseDateOnly(
+          normalizeImportedProjectDate(project.completedAt, { preferPast: true })
+        );
+        if (!parsedDate) return false;
 
         return parsedDate.getMonth() === currentMonth && parsedDate.getFullYear() === currentYear;
       })
