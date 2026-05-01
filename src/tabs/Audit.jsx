@@ -42,7 +42,7 @@ const Audit = () => {
 
   return (
     <div className="space-y-8">
-      <header className="mb-10 flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
+      <header className="mb-10 space-y-6">
         <div>
           <h2 className="bg-gradient-to-r from-white to-white/40 bg-clip-text text-4xl font-bold tracking-tight text-transparent">
             Аудит виконання
@@ -52,7 +52,7 @@ const Audit = () => {
           </p>
         </div>
 
-        <div className="flex flex-col gap-4 sm:flex-row">
+        <div className="glass-card flex flex-col gap-4 p-4 sm:flex-row sm:items-end">
           <label className="space-y-2">
             <span className="text-xs font-bold uppercase tracking-widest text-secondary">Дата з</span>
             <input
