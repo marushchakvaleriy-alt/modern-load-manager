@@ -16,10 +16,15 @@ export const AuthProvider = ({ children }) => {
 
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
       if (currentUser) {
-        const userDoc = await getDoc(doc(db, 'users', currentUser.uid));
-        if (userDoc.exists()) {
-          setRole(userDoc.data().role || 'viewer');
-        } else {
+        try {
+          const userDoc = await getDoc(doc(db, 'users', currentUser.uid));
+          if (userDoc.exists()) {
+            setRole(userDoc.data().role || 'viewer');
+          } else {
+            setRole('viewer');
+          }
+        } catch (e) {
+          console.error("Error reading user role from Firestore:", e);
           setRole('viewer');
         }
         setUser(currentUser);
@@ -36,8 +41,13 @@ export const AuthProvider = ({ children }) => {
   const login = (email, password) => signInWithEmailAndPassword(auth, email, password);
 
   const register = async ({ firstName, lastName, email, password }) => {
-    const existingUsersSnapshot = await getDocs(collection(db, 'users'));
-    const isFirstUser = existingUsersSnapshot.empty;
+    let isFirstUser = false;
+    try {
+      const existingUsersSnapshot = await getDocs(collection(db, 'users'));
+      isFirstUser = existingUsersSnapshot.empty;
+    } catch (e) {
+      console.warn("Could not check if first user due to permissions, defaulting to viewer:", e);
+    }
 
     const credential = await createUserWithEmailAndPassword(auth, email, password);
     const normalizedFirstName = String(firstName || '').trim();

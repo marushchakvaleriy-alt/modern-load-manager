@@ -1,4 +1,4 @@
-﻿import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { collection, onSnapshot, query } from 'firebase/firestore';
 import { Bar } from 'react-chartjs-2';
 import {
@@ -146,16 +146,8 @@ const Flow = () => {
 
   const capacityPoints = flowData.length
     ? [
-        {
-          x: 1,
-          y: isAllDirections ? flowData[0].capacity : flowData[0].estimatedCapacity
-        },
-        {
-          x: 2,
-          y: isAllDirections ? flowData[0].capacity : flowData[0].estimatedCapacity
-        },
-        ...flowData.slice(1).map((day, index) => ({
-          x: index + 3,
+        ...flowData.map((day, index) => ({
+          x: index + 1,
           y: isAllDirections ? day.capacity : day.estimatedCapacity
         })),
         {
@@ -475,48 +467,6 @@ const Flow = () => {
         </div>
         <div className="h-[450px]">
           <Bar data={chartData} options={chartOptions} />
-        </div>
-      </div>
-
-      <div className="glass-card p-8">
-        <h3 className="text-lg font-bold mb-4 flex items-center gap-2 text-secondary">
-          <Database size={18} />
-          DEBUG: Останні 15 проєктів у базі
-        </h3>
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs">
-            <thead>
-              <tr className="border-b border-white/10 text-secondary uppercase font-bold">
-                <th className="py-2">Назва проєкту</th>
-                <th className="py-2">Статус</th>
-                <th className="py-2">Створено (Input)</th>
-                <th className="py-2">Завершено (Completed)</th>
-                <th className="py-2">Бали</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-white/5">
-              {projects.slice(-15).map((project) => (
-                <tr key={project.id}>
-                  <td className="py-2 font-medium">{project.name}</td>
-                  <td className="py-2">
-                    <span
-                      className={`px-2 py-0.5 rounded text-[10px] ${
-                        project.status === 'completed' ? 'bg-violet-400/20 text-[#ff0080]' : 'bg-green-400/20 text-green-400'
-                      }`}
-                    >
-                      {project.status}
-                    </span>
-                  </td>
-                  <td className="py-2 text-[#0e0efe]">{formatDate(project.startDate, 'startDate')}</td>
-                  <td className="py-2 text-[#ff0080]">{formatDate(project.completedAt, 'completedAt')}</td>
-                  <td className="py-2 font-bold">{project.points}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-          <p className="text-[10px] text-secondary mt-4 italic">
-            * Якщо бачиш X, значить колонку в Excel не знайдено або вона була порожня.
-          </p>
         </div>
       </div>
     </div>

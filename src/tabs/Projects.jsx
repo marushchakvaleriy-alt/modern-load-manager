@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { addDoc, collection, deleteDoc, deleteField, doc, getDocs, onSnapshot, serverTimestamp, writeBatch } from 'firebase/firestore';
-import { Plus, Trash2, Upload } from 'lucide-react';
+import { ArrowDown, ArrowUp, Eye, EyeOff, FilterX, Plus, Search, Trash2, Upload } from 'lucide-react';
 import { db } from '../lib/firebase';
 import { getImportedProjectKey, processBitrixExcel } from '../lib/excelUtils';
 import { useAuth } from '../store/useAuth';
@@ -12,6 +12,15 @@ const Projects = ({ projectFilter, setProjectFilter }) => {
   const [showAddModal, setShowAddModal] = useState(false);
   const [newProject, setNewProject] = useState({ name: '', points: 0, assignedEmployee: '', status: 'active' });
   const [localFilter, setLocalFilter] = useState('all');
+  const [showClosed, setShowClosed] = useState(false);
+
+  // Column filter state
+  const [filterName, setFilterName] = useState('');
+  const [filterEmployee, setFilterEmployee] = useState('');
+  const [filterStatus, setFilterStatus] = useState('');
+  const [filterDeadline, setFilterDeadline] = useState('');
+  const [sortField, setSortField] = useState(null);
+  const [sortOrder, setSortOrder] = useState('asc');
 
   const currentFilter = projectFilter || localFilter;
   const setCurrentFilter = setProjectFilter || setLocalFilter;
@@ -177,18 +186,50 @@ const Projects = ({ projectFilter, setProjectFilter }) => {
     }
   };
 
-  const filteredProjects = projects.filter((project) => {
-    if (currentFilter === 'all') return true;
-    if (currentFilter === 'active') return project.status === 'active';
-    if (currentFilter === 'waiting') return project.status === 'waiting';
-    if (currentFilter === 'overdue') {
-      if (project.status === 'overdue') return true;
-      if (project.status !== 'active' || !project.deadline || project.deadline === '-') return false;
+  const uniqueEmployees = Array.from(
+    new Set(projects.map((p) => p.assignedEmployee).filter(Boolean))
+  ).sort((a, b) => a.localeCompare(b, 'uk'));
 
-      const todayStr = new Date().toISOString().split('T')[0];
-      return project.deadline < todayStr;
+  const handleSort = (field) => {
+    if (sortField === field) {
+      if (sortOrder === 'asc') setSortOrder('desc');
+      else {
+        setSortField(null);
+        setSortOrder('asc');
+      }
+    } else {
+      setSortField(field);
+      setSortOrder('asc');
     }
-    if (currentFilter === 'completedThisMonth') {
+  };
+
+  const clearColumnFilters = () => {
+    setFilterName('');
+    setFilterEmployee('');
+    setFilterStatus('');
+    setFilterDeadline('');
+  };
+
+  const hasActiveColumnFilters = Boolean(filterName || filterEmployee || filterStatus || filterDeadline);
+
+  const filteredProjects = projects.filter((project) => {
+    // 1. Tab filter
+    if (currentFilter === 'all') {
+      if (!showClosed && project.status === 'completed') return false;
+    } else if (currentFilter === 'active') {
+      if (project.status !== 'active') return false;
+    } else if (currentFilter === 'waiting') {
+      if (project.status !== 'waiting') return false;
+    } else if (currentFilter === 'overdue') {
+      if (project.status === 'overdue') {
+        // ok
+      } else if (project.status !== 'active' || !project.deadline || project.deadline === '-') {
+        return false;
+      } else {
+        const todayStr = new Date().toISOString().split('T')[0];
+        if (project.deadline >= todayStr) return false;
+      }
+    } else if (currentFilter === 'completedThisMonth') {
       if (project.status !== 'completed') return false;
       const now = new Date();
       const dateStr =
@@ -196,9 +237,55 @@ const Projects = ({ projectFilter, setProjectFilter }) => {
         (project.createdAt?.toDate ? project.createdAt.toDate().toISOString() : new Date().toISOString());
       const parsedDate = new Date(dateStr);
       if (Number.isNaN(parsedDate.getTime())) return false;
-      return parsedDate.getMonth() === now.getMonth() && parsedDate.getFullYear() === now.getFullYear();
+      if (parsedDate.getMonth() !== now.getMonth() || parsedDate.getFullYear() !== now.getFullYear()) return false;
     }
+
+    // 2. Column filters
+    if (filterName && !project.name?.toLowerCase().includes(filterName.toLowerCase())) {
+      return false;
+    }
+
+    if (filterEmployee) {
+      if (filterEmployee === '__unassigned__') {
+        if (project.assignedEmployee) return false;
+      } else if (project.assignedEmployee !== filterEmployee) {
+        return false;
+      }
+    }
+
+    if (filterStatus) {
+      if (project.status !== filterStatus) return false;
+    }
+
+    if (filterDeadline) {
+      const formatted = formatDate(project.deadline);
+      const raw = project.deadline || '';
+      const q = filterDeadline.toLowerCase();
+      if (!formatted.toLowerCase().includes(q) && !raw.toLowerCase().includes(q)) {
+        return false;
+      }
+    }
+
     return true;
+  });
+
+  const sortedProjects = [...filteredProjects].sort((a, b) => {
+    if (!sortField) return 0;
+
+    let aVal = a[sortField] ?? '';
+    let bVal = b[sortField] ?? '';
+
+    if (sortField === 'points') {
+      aVal = Number(aVal) || 0;
+      bVal = Number(bVal) || 0;
+    } else if (typeof aVal === 'string') {
+      aVal = aVal.toLowerCase();
+      bVal = bVal.toLowerCase();
+    }
+
+    if (aVal < bVal) return sortOrder === 'asc' ? -1 : 1;
+    if (aVal > bVal) return sortOrder === 'asc' ? 1 : -1;
+    return 0;
   });
 
   return (
@@ -233,7 +320,7 @@ const Projects = ({ projectFilter, setProjectFilter }) => {
         )}
       </header>
 
-      <div className="flex gap-2 mb-6 bg-white/[0.02] p-1.5 rounded-xl border border-white/5 w-fit">
+      <div className="flex items-center gap-2 mb-6 bg-white/[0.02] p-1.5 rounded-xl border border-white/5 w-fit flex-wrap">
         {[
           { id: 'all', label: 'Всі проєкти' },
           { id: 'active', label: 'В роботі' },
@@ -253,22 +340,170 @@ const Projects = ({ projectFilter, setProjectFilter }) => {
             {tab.label}
           </button>
         ))}
+
+        <div className="w-px h-6 bg-white/10 mx-1 self-center" />
+
+        <button
+          onClick={() => setShowClosed((prev) => !prev)}
+          className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+            showClosed
+              ? 'bg-primary/20 text-primary border border-primary/30 shadow-sm'
+              : 'text-secondary hover:text-white hover:bg-white/5'
+          }`}
+        >
+          {showClosed ? <Eye size={16} /> : <EyeOff size={16} />}
+          <span>Показувати закриті</span>
+        </button>
       </div>
 
       <div className="glass-card overflow-hidden border-white/5 shadow-3xl">
         <table className="w-full text-left border-collapse">
           <thead>
-            <tr className="bg-white/[0.02]">
-              <th className="table-header">Назва проєкту</th>
-              <th className="table-header">Виконавець</th>
-              <th className="table-header text-center">Поінти</th>
-              <th className="table-header">Статус</th>
-              <th className="table-header">Дедлайн</th>
-              {role === 'admin' && <th className="table-header text-right"></th>}
+            <tr className="bg-white/[0.02] border-b border-white/5">
+              <th
+                onClick={() => handleSort('name')}
+                className="table-header cursor-pointer select-none hover:text-white transition-colors"
+              >
+                <div className="flex items-center gap-1.5">
+                  <span>Назва проєкту</span>
+                  {sortField === 'name' && (
+                    sortOrder === 'asc' ? <ArrowUp size={14} className="text-primary" /> : <ArrowDown size={14} className="text-primary" />
+                  )}
+                </div>
+              </th>
+              <th
+                onClick={() => handleSort('assignedEmployee')}
+                className="table-header cursor-pointer select-none hover:text-white transition-colors"
+              >
+                <div className="flex items-center gap-1.5">
+                  <span>Виконавець</span>
+                  {sortField === 'assignedEmployee' && (
+                    sortOrder === 'asc' ? <ArrowUp size={14} className="text-primary" /> : <ArrowDown size={14} className="text-primary" />
+                  )}
+                </div>
+              </th>
+              <th
+                onClick={() => handleSort('points')}
+                className="table-header text-center cursor-pointer select-none hover:text-white transition-colors"
+              >
+                <div className="flex items-center justify-center gap-1.5">
+                  <span>Поінти</span>
+                  {sortField === 'points' && (
+                    sortOrder === 'asc' ? <ArrowUp size={14} className="text-primary" /> : <ArrowDown size={14} className="text-primary" />
+                  )}
+                </div>
+              </th>
+              <th
+                onClick={() => handleSort('status')}
+                className="table-header cursor-pointer select-none hover:text-white transition-colors"
+              >
+                <div className="flex items-center gap-1.5">
+                  <span>Статус</span>
+                  {sortField === 'status' && (
+                    sortOrder === 'asc' ? <ArrowUp size={14} className="text-primary" /> : <ArrowDown size={14} className="text-primary" />
+                  )}
+                </div>
+              </th>
+              <th
+                onClick={() => handleSort('deadline')}
+                className="table-header cursor-pointer select-none hover:text-white transition-colors"
+              >
+                <div className="flex items-center gap-1.5">
+                  <span>Дедлайн</span>
+                  {sortField === 'deadline' && (
+                    sortOrder === 'asc' ? <ArrowUp size={14} className="text-primary" /> : <ArrowDown size={14} className="text-primary" />
+                  )}
+                </div>
+              </th>
+              <th className="table-header text-right">
+                {hasActiveColumnFilters && (
+                  <button
+                    onClick={clearColumnFilters}
+                    title="Скинути фільтри"
+                    className="p-1 rounded-lg text-secondary hover:text-white hover:bg-white/10 transition-colors inline-flex items-center gap-1 text-xs font-normal"
+                  >
+                    <FilterX size={14} />
+                    <span>Скинути</span>
+                  </button>
+                )}
+              </th>
+            </tr>
+
+            {/* Column Filter Controls Row */}
+            <tr className="bg-white/[0.01] border-b border-white/5">
+              <th className="px-4 py-2 font-normal">
+                <div className="relative">
+                  <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-secondary/60" />
+                  <input
+                    type="text"
+                    placeholder="Фільтр назви..."
+                    value={filterName}
+                    onChange={(e) => setFilterName(e.target.value)}
+                    className="w-full bg-white/5 border border-white/10 rounded-lg pl-8 pr-6 py-1.5 text-xs text-slate-200 outline-none focus:border-primary focus:bg-white/10 transition-all placeholder:text-secondary/50"
+                  />
+                  {filterName && (
+                    <button
+                      onClick={() => setFilterName('')}
+                      className="absolute right-2 top-1/2 -translate-y-1/2 text-secondary hover:text-white text-xs"
+                    >
+                      ×
+                    </button>
+                  )}
+                </div>
+              </th>
+              <th className="px-4 py-2 font-normal">
+                <select
+                  value={filterEmployee}
+                  onChange={(e) => setFilterEmployee(e.target.value)}
+                  className="w-full bg-white/5 border border-white/10 rounded-lg px-2.5 py-1.5 text-xs text-slate-200 outline-none focus:border-primary focus:bg-white/10 transition-all cursor-pointer"
+                >
+                  <option value="" className="bg-slate-900 text-slate-200">Всі виконавці</option>
+                  <option value="__unassigned__" className="bg-slate-900 text-slate-200">Не призначено</option>
+                  {uniqueEmployees.map((emp) => (
+                    <option key={emp} value={emp} className="bg-slate-900 text-slate-200">
+                      {emp}
+                    </option>
+                  ))}
+                </select>
+              </th>
+              <th className="px-4 py-2 font-normal"></th>
+              <th className="px-4 py-2 font-normal">
+                <select
+                  value={filterStatus}
+                  onChange={(e) => setFilterStatus(e.target.value)}
+                  className="w-full bg-white/5 border border-white/10 rounded-lg px-2.5 py-1.5 text-xs text-slate-200 outline-none focus:border-primary focus:bg-white/10 transition-all cursor-pointer"
+                >
+                  <option value="" className="bg-slate-900 text-slate-200">Всі статуси</option>
+                  <option value="active" className="bg-slate-900 text-slate-200">В роботі</option>
+                  <option value="waiting" className="bg-slate-900 text-slate-200">Очікує</option>
+                  <option value="overdue" className="bg-slate-900 text-slate-200">Протерміновано</option>
+                  <option value="completed" className="bg-slate-900 text-slate-200">Completed</option>
+                </select>
+              </th>
+              <th className="px-4 py-2 font-normal">
+                <div className="relative">
+                  <input
+                    type="text"
+                    placeholder="Фільтр дати..."
+                    value={filterDeadline}
+                    onChange={(e) => setFilterDeadline(e.target.value)}
+                    className="w-full bg-white/5 border border-white/10 rounded-lg px-2.5 py-1.5 text-xs text-slate-200 outline-none focus:border-primary focus:bg-white/10 transition-all placeholder:text-secondary/50"
+                  />
+                  {filterDeadline && (
+                    <button
+                      onClick={() => setFilterDeadline('')}
+                      className="absolute right-2 top-1/2 -translate-y-1/2 text-secondary hover:text-white text-xs"
+                    >
+                      ×
+                    </button>
+                  )}
+                </div>
+              </th>
+              <th className="px-4 py-2 font-normal text-right"></th>
             </tr>
           </thead>
           <tbody className="divide-y divide-white/[0.03]">
-            {filteredProjects.map((project) => (
+            {sortedProjects.map((project) => (
               <tr key={project.id} className="hover:bg-white/[0.02] transition-colors group">
                 <td className="px-6 py-5 font-semibold text-slate-200">{project.name}</td>
                 <td className="px-6 py-5">

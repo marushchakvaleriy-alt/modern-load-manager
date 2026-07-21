@@ -1,5 +1,13 @@
-﻿import { useCallback, useMemo } from 'react';
+import { useCallback, useMemo } from 'react';
 import { normalizeImportedProjectDate, parseDateOnly } from '../lib/dateUtils';
+
+const toLocalDateStr = (d) => {
+  if (!d || Number.isNaN(d.getTime())) return '';
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
 
 /**
  * Hook for calculating department and designer load
@@ -58,7 +66,7 @@ export const useLoadEngine = (projects, employees, absences = []) => {
       const date = new Date(today);
       date.setDate(today.getDate() + i);
 
-      const dateStr = date.toISOString().split('T')[0];
+      const dateStr = toLocalDateStr(date);
       const isWorkingDay = date.getDay() !== 0 && date.getDay() !== 6;
       const presentCount = isWorkingDay ? presentEmployeeCount(dateStr) : 0;
       const capacity = presentCount * CAPACITY_PER_DAY;
@@ -339,7 +347,7 @@ export const useLoadEngine = (projects, employees, absences = []) => {
       const d = new Date(cursor);
       const dayStart = new Date(d); dayStart.setHours(0, 0, 0, 0);
       const dayEnd   = new Date(d); dayEnd.setHours(23, 59, 59, 999);
-      const dateStr = d.toISOString().split('T')[0];
+      const dateStr = toLocalDateStr(d);
       const isWorkingDay = d.getDay() !== 0 && d.getDay() !== 6;
       
       // 1. Input: created on this exact day
@@ -423,4 +431,3 @@ export const useLoadEngine = (projects, employees, absences = []) => {
 
   return { departmentLoad, employeeLoad, calculateEfficiency, calculateDirectionStats, calculateItemStats, calculateDailyFlow, CAPACITY_PER_DAY };
 };
-
