@@ -13,6 +13,11 @@ export const getImportedProjectKey = (project) => {
   const normalizedName = normalizeKeyPart(project?.name);
   if (!normalizedName) return '';
 
+  const normalizedEmp = normalizeKeyPart(project?.assignedEmployee);
+  if (normalizedEmp) {
+    return `${normalizedName}___${normalizedEmp}`;
+  }
+
   return normalizedName;
 };
 
@@ -115,8 +120,8 @@ export const processBitrixExcel = (file) => {
             plannedTime: robustGet(row, ['Планируемые трудозатраты']) || '',
             spentTime: robustGet(row, ['Затраченное время', 'Витрачений час']) || '',
             direction: robustGet(row, ['Напрямок', 'Направление', 'Direction', 'Сфера', 'Вид діяльності']) || 'Загальне',
-            taskType: robustGet(row, ['Категорія', 'Категория', 'Category', 'Вид робіт', 'Вид', 'Тип', 'Type', 'Правка/Нова']) || '',
-            itemsInfo: robustGet(row, ['Виріб', 'Изделие', 'Product', 'виріб+кількість', 'items+qty']) || '',
+            taskType: robustGet(row, ['Категорія', 'Категория', 'Category', 'Розробка/Правка', 'Правка/Нова', 'Вид робіт', 'Вид', 'Тип', 'Type']) || '',
+            itemsInfo: robustGet(row, ['виріб+кількість', 'виріб + кількість', 'виріб/кількість', 'Виріб', 'Изделие', 'Product', 'items+qty', 'виріб кількість']) || '',
             startDate,
             deadline,
             completedAt,
@@ -246,4 +251,49 @@ const mapBitrixStatus = (status) => {
   if (s.includes('выполня') || s.includes('роботі') || s.includes('progress')) return 'active';
   
   return 'active'; // Default
+};
+
+export const parseBitrixText = (text) => {
+  if (!text || typeof text !== 'string') return [];
+
+  try {
+    const parsed = JSON.parse(text);
+    if (Array.isArray(parsed) && parsed.length > 0) {
+      return parsed;
+    }
+  } catch (e) {
+    // Not JSON
+  }
+
+  const lines = text.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+  const projects = [];
+
+  const tabRows = lines.filter((l) => l.includes('\t'));
+  if (tabRows.length > 0) {
+    tabRows.forEach((rowStr, idx) => {
+      const cols = rowStr.split('\t').map((c) => c.trim());
+      if (cols.length >= 2) {
+        const name = cols[0];
+        const emp = cols[2] || cols[1];
+        const ptsStr = cols[3] || '1';
+        const statusStr = cols[4] || cols[3] || 'active';
+        const deadlineStr = cols[5] || cols[4] || null;
+
+        if (name && name !== 'НАЗВА ПРОЄКТУ' && name !== 'Назва') {
+          projects.push({
+            id: `btx-txt-${Date.now()}-${idx}`,
+            name,
+            assignedEmployee: emp,
+            points: Number(ptsStr) || 1,
+            status: mapBitrixStatus(statusStr),
+            deadline: deadlineStr && deadlineStr !== '-' ? deadlineStr : null,
+            type: 'bitrix',
+            importedAt: new Date().toISOString()
+          });
+        }
+      }
+    });
+  }
+
+  return projects;
 };

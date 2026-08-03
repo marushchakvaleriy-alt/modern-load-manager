@@ -124,11 +124,19 @@ export const useLoadEngine = (projects, employees, absences = []) => {
 
   // Shared helper: detect if a project is a revision (works for old & new data)
   const isRevision = (p) => {
-    const checks = [
-      String(p.taskType || ''),    // new field from column O
-      String(p.category || ''),    // old field (was previously mapped)
-    ];
-    return checks.some(v => v.toLowerCase().includes('правк'));
+    const taskTypeStr = String(p.taskType || p.category || '').trim().toLowerCase();
+    
+    // Explicit revision keywords in category or task name
+    if (taskTypeStr.includes('правк')) return true;
+    
+    const nameStr = String(p.name || '').toLowerCase();
+    if (nameStr.includes('правк')) return true;
+
+    // Explicit new task keyword (Column O: Розробка нового)
+    if (taskTypeStr.includes('розробка') || taskTypeStr.includes('нова')) return false;
+
+    // Default for other/old tasks without explicit "правк": treat as new
+    return false;
   };
 
   const calculateEfficiency = (employeeName, startDateParam = null, endDateParam = null) => {
@@ -187,10 +195,14 @@ export const useLoadEngine = (projects, employees, absences = []) => {
       plannedHours += parseTime(p.plannedTime);
       spentHours += parseTime(p.spentTime);
       
-      // Items count from itemsInfo - robust regex
+      // Items count from itemsInfo - robust regex & multi-item splitting
       if (p.itemsInfo && p.itemsInfo.trim() !== '') {
-        const match = String(p.itemsInfo).match(/\((\d+)\)/);
-        itemsCount += match ? Number(match[1]) : 1;
+        const itemsList = parseItemsFromStr(p.itemsInfo);
+        if (itemsList.length > 0) {
+          itemsCount += itemsList.reduce((sum, item) => sum + item.qty, 0);
+        } else {
+          itemsCount += 1;
+        }
       } else {
         // Fallback for some Bitrix formats where count is at the end
         const endMatch = String(p.name || '').match(/\s\((\d+)\)$/);
@@ -274,50 +286,78 @@ export const useLoadEngine = (projects, employees, absences = []) => {
     }).sort((a, b) => b.completedPoints - a.completedPoints);
   };
 
+  const parseItemsFromStr = (itemsStr) => {
+    if (!itemsStr || typeof itemsStr !== 'string') return [];
+    // Split by comma, plus, semicolon, slash, or ampersand
+    const parts = itemsStr.split(/[,+;/&]+/).map((s) => s.trim()).filter(Boolean);
+    const items = [];
+
+    parts.forEach((part) => {
+      const match = part.match(/^([^(]+?)(?:\s*\(\s*(\d+)\s*\))?$/);
+      const rawName = match ? match[1].trim() : part.trim();
+      const qty = match && match[2] && !isNaN(Number(match[2])) ? parseInt(match[2], 10) : 1;
+
+      if (!rawName) return;
+
+      const name = rawName.charAt(0).toUpperCase() + rawName.slice(1).toLowerCase();
+      items.push({ name, qty });
+    });
+
+    return items;
+  };
+
   const calculateItemStats = (startDateParam = null, endDateParam = null) => {
     const { rangeStart, rangeEnd } = createDateRange(startDateParam, endDateParam);
     const itemMap = {};
-    
-    projects.filter((p) => {
-      if (p.status !== 'completed') return false;
-      const completedDate = parseProjectDate(p.completedAt, { preferPast: true });
-      return completedDate && completedDate >= rangeStart && completedDate <= rangeEnd;
-    }).forEach(p => {
-      const itemsStr = String(p.itemsInfo || '');
-      if (!itemsStr) return;
 
-      const revision = isRevision(p);
-      const parts = itemsStr.split(',').map(s => s.trim()).filter(Boolean);
-      
-      parts.forEach(part => {
-        const match = part.match(/^([^(]+)(?:\((\d+)\))?$/);
-        if (match) {
-          const itemName = match[1].trim();
-          const qty = match[2] ? Number(match[2]) : 1;
-          
+    projects
+      .filter((p) => {
+        if (p.status !== 'completed') return false;
+        const completedDate = parseProjectDate(p.completedAt, { preferPast: true });
+        if (!completedDate) return false;
+        return completedDate >= rangeStart && completedDate <= rangeEnd;
+      })
+      .forEach((p) => {
+        let itemsStr = String(p.itemsInfo || '').trim();
+        if (!itemsStr) {
+          const nameMatch = String(p.name || '').match(/виріб[:\s]+([^()]+)/i);
+          if (nameMatch) {
+            itemsStr = nameMatch[1].trim();
+          } else {
+            itemsStr = 'Не вказано (без деталізації)';
+          }
+        }
+
+        const revision = isRevision(p);
+        const items = parseItemsFromStr(itemsStr);
+        const projectItemsMap = {};
+        items.forEach(({ name: itemName, qty }) => {
+          projectItemsMap[itemName] = (projectItemsMap[itemName] || 0) + qty;
+        });
+
+        Object.entries(projectItemsMap).forEach(([itemName, qty]) => {
           if (!itemMap[itemName]) {
-            itemMap[itemName] = { 
-              name: itemName, 
-              count: 0, 
-              points: 0, 
+            itemMap[itemName] = {
+              name: itemName,
+              count: 0,
+              points: 0,
               projects: 0,
               newCount: 0,
               revisionCount: 0
             };
           }
-          
+
           itemMap[itemName].count += qty;
           itemMap[itemName].projects += 1;
           itemMap[itemName].points += (p.points || 0);
-          
+
           if (revision) {
             itemMap[itemName].revisionCount += qty;
           } else {
             itemMap[itemName].newCount += qty;
           }
-        }
+        });
       });
-    });
 
     return Object.values(itemMap).sort((a, b) => b.count - a.count);
   };
@@ -370,18 +410,15 @@ export const useLoadEngine = (projects, employees, absences = []) => {
         return projectDay.getTime() === dayStart.getTime();
       }).reduce((sum, p) => sum + (Number(p.points) || 0), 0);
 
-      // 3. Buffer: what rolled into this day from yesterday.
-      // It includes tasks created before today started and not completed before today started.
+      // 3. Buffer (end of day): created on or before dayEnd and not completed before dayEnd
       const bufferTasks = filteredProjects.filter(p => {
         if (!p.startDate) return true;
         const createdDate = parseDateOnly(normalizeImportedProjectDate(p.startDate, { preferPast: true }));
-        if (!createdDate) return true;
-        if (createdDate >= dayStart) return false;
+        if (createdDate && createdDate > dayEnd) return false;
 
         if (p.status === 'completed' && p.completedAt) {
           const compDate = parseProjectDate(p.completedAt, { preferPast: true });
-          if (!compDate) return true;
-          if (compDate < dayStart) return false;
+          if (compDate && compDate <= dayEnd) return false;
         }
         return true;
       });
@@ -412,13 +449,21 @@ export const useLoadEngine = (projects, employees, absences = []) => {
       const capacityCount = isAll ? teamSize : Math.min(assignedPerformersCount, baseEmployeeCount);
       const capacity = isWorkingDay ? (capacityCount * CAPACITY_PER_DAY) : 0;
 
+      const isToday = dateStr === toLocalDateStr(new Date());
+      const finalBuffer = isToday 
+        ? filteredProjects.filter(p => p.status !== 'completed').reduce((sum, p) => sum + (Number(p.points) || 0), 0)
+        : buffer;
+      const finalOverdue = isToday
+        ? filteredProjects.filter(p => p.status === 'overdue').reduce((sum, p) => sum + (Number(p.points) || 0), 0)
+        : overdue;
+
       flowData.push({
         date: d,
         dateLabel: d.toLocaleDateString('uk-UA', { day: '2-digit', month: '2-digit' }),
         input,
         completed,
-        buffer,
-        overdue,
+        buffer: finalBuffer,
+        overdue: finalOverdue,
         capacity,
         performersCount: capacityCount
       });

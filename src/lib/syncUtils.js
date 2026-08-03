@@ -33,47 +33,61 @@ export const triggerGlobalSync = async () => {
       return { success: true, diagnostics, warning: 'No projects found' };
     }
 
-    const uniqueNamesFromProjects = new Set(
-      projects.map(p => (p.assignedEmployee || '').trim()).filter(Boolean).map(n => n.toLowerCase())
-    );
-    diagnostics.uniqueNames = uniqueNamesFromProjects.size;
+    // Group active employee names by department ('design' vs 'construction')
+    const activeEmpMap = new Map(); // key: nameLower + '_' + dept -> { originalName, dept }
+    const activeKeysSet = new Set();
 
+    projects.forEach(p => {
+      const empName = (p.assignedEmployee || '').trim();
+      if (!empName || empName === 'Не призначено') return;
+      const dept = p.department || 'design';
+      const nameLower = empName.toLowerCase();
+      const comboKey = `${nameLower}_${dept}`;
+
+      if (!activeEmpMap.has(comboKey)) {
+        activeEmpMap.set(comboKey, { originalName: empName, dept });
+      }
+      activeKeysSet.add(comboKey);
+    });
+
+    diagnostics.uniqueNames = activeEmpMap.size;
     const empBatch = writeBatch(db);
     let changed = false;
 
-    // 1. Add/Update employees using deterministic IDs
-    uniqueNamesFromProjects.forEach(nameLower => {
-      const originalName = projects.find(p => (p.assignedEmployee || '').trim().toLowerCase() === nameLower)?.assignedEmployee?.trim();
-      if (originalName) {
-        const customId = getEmployeeId(originalName);
-        const ref = doc(db, 'employees', customId);
-        
-        const existingEmp = employees.find(e => (e.name || '').trim().toLowerCase() === nameLower);
-        
-        if (!existingEmp || existingEmp.id !== customId) {
-          empBatch.set(ref, { 
-            name: originalName, 
-            role: 'Проєктант', 
-            updatedAt: serverTimestamp() 
-          }, { merge: true });
-          changed = true;
-          diagnostics.added++;
-        }
+    // 1. Add/Update employees per department with safe deterministic IDs
+    activeEmpMap.forEach(({ originalName, dept }, comboKey) => {
+      const customId = getEmployeeId(`${originalName}_${dept}`);
+      const ref = doc(db, 'employees', customId);
+      const roleName = dept === 'construction' ? 'Конструктор' : 'Проєктант';
+
+      const existingEmp = employees.find(e => e.id === customId || ( (e.name || '').trim().toLowerCase() === originalName.toLowerCase() && (e.department || 'design') === dept ));
+
+      if (!existingEmp || existingEmp.id !== customId || existingEmp.department !== dept) {
+        empBatch.set(ref, { 
+          name: originalName, 
+          role: roleName,
+          department: dept,
+          updatedAt: serverTimestamp() 
+        }, { merge: true });
+        changed = true;
+        diagnostics.added++;
       }
     });
 
-    // 2. Remove stale employees OR legacy random-ID duplicates
+    // 2. Remove stale employees no longer present in any projects for their department
     employees.forEach(emp => {
       const empNameLower = (emp.name || '').trim().toLowerCase();
-      const deterministicId = getEmployeeId(emp.name);
-      
-      const isStale = !uniqueNamesFromProjects.has(empNameLower);
-      const isLegacyDuplicate = uniqueNamesFromProjects.has(empNameLower) && emp.id !== deterministicId;
+      const empDept = emp.department || 'design';
+      const comboKey = `${empNameLower}_${empDept}`;
+      const deterministicId = getEmployeeId(`${emp.name}_${empDept}`);
+
+      const isStale = !activeKeysSet.has(comboKey);
+      const isLegacyDuplicate = activeKeysSet.has(comboKey) && emp.id !== deterministicId;
 
       if (isStale || isLegacyDuplicate) {
         empBatch.delete(doc(db, 'employees', emp.id));
         diagnostics.deleted++;
-        
+
         if (isStale) {
           absSnapshot.docs.forEach(absDoc => {
             if (absDoc.data().employeeId === emp.id) {
@@ -90,7 +104,7 @@ export const triggerGlobalSync = async () => {
             }
           });
         }
-        
+
         changed = true;
       }
     });

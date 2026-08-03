@@ -1,22 +1,38 @@
 import React, { useEffect, useState } from 'react';
+import CustomDatePicker from '../components/CustomDatePicker';
 import { collection, onSnapshot, query } from 'firebase/firestore';
 import { CheckCircle, Clock, Layers, PieChart } from 'lucide-react';
 import { db } from '../lib/firebase';
 import { useLoadEngine } from '../hooks/useLoadEngine';
 
+import { useDepartment } from '../store/departmentContext';
+
 const getMonthStartValue = () => {
   const today = new Date();
-  return new Date(today.getFullYear(), today.getMonth(), 1).toISOString().split('T')[0];
+  const year = today.getFullYear();
+  const month = String(today.getMonth() + 1).padStart(2, '0');
+  return `${year}-${month}-01`;
 };
 
-const getTodayValue = () => new Date().toISOString().split('T')[0];
+const getTodayValue = () => {
+  const today = new Date();
+  const year = today.getFullYear();
+  const month = String(today.getMonth() + 1).padStart(2, '0');
+  const day = String(today.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
 
 const DirectionAudit = () => {
   const [projects, setProjects] = useState([]);
   const [employees, setEmployees] = useState([]);
   const [startDate, setStartDate] = useState(getMonthStartValue);
   const [endDate, setEndDate] = useState(getTodayValue);
-  const { calculateDirectionStats } = useLoadEngine(projects, employees);
+
+  const { filterByDepartment } = useDepartment();
+  const deptProjects = filterByDepartment(projects);
+  const deptEmployees = filterByDepartment(employees);
+
+  const { calculateDirectionStats } = useLoadEngine(deptProjects, deptEmployees);
 
   useEffect(() => {
     const unsubProjects = onSnapshot(query(collection(db, 'projects')), (snap) =>
@@ -38,35 +54,32 @@ const DirectionAudit = () => {
     <div className="space-y-8">
       <header className="mb-10 space-y-6">
         <div>
-          <h2 className="bg-gradient-to-r from-white to-white/40 bg-clip-text text-4xl font-bold tracking-tight text-transparent">
+          <h2 className="text-4xl font-bold tracking-tight text-gray-700">
             Аудит напрямків
           </h2>
-          <p className="mt-2 text-lg text-secondary">
+          <p className="mt-2 text-lg text-gray-500 font-medium">
             Аналіз виконання та поточного залишку по напрямках
           </p>
         </div>
 
-        <div className="glass-card flex flex-col gap-4 p-4 sm:flex-row sm:items-end">
-          <label className="space-y-2">
-            <span className="text-xs font-bold uppercase tracking-widest text-secondary">Дата з</span>
-            <input
-              type="date"
+        <div className="neu-pressed flex flex-wrap items-center gap-6 p-4 rounded-2xl">
+          <div className="flex items-center gap-3">
+            <span className="text-xs font-bold uppercase tracking-widest text-gray-500">Дата з:</span>
+            <CustomDatePicker
               value={startDate}
               max={endDate}
-              onChange={(e) => setStartDate(e.target.value)}
-              className="rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 text-sm font-semibold text-white outline-none transition focus:border-primary/50"
+              onChange={setStartDate}
             />
-          </label>
-          <label className="space-y-2">
-            <span className="text-xs font-bold uppercase tracking-widest text-secondary">Дата до</span>
-            <input
-              type="date"
+          </div>
+
+          <div className="flex items-center gap-3">
+            <span className="text-xs font-bold uppercase tracking-widest text-gray-500">Дата до:</span>
+            <CustomDatePicker
               value={endDate}
               min={startDate}
-              onChange={(e) => setEndDate(e.target.value)}
-              className="rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 text-sm font-semibold text-white outline-none transition focus:border-primary/50"
+              onChange={setEndDate}
             />
-          </label>
+          </div>
         </div>
       </header>
 

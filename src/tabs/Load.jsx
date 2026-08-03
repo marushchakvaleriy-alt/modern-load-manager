@@ -14,13 +14,21 @@ import {
 } from 'chart.js';
 import { User, TrendingUp, AlertTriangle, RefreshCw } from 'lucide-react';
 
+import { useDepartment } from '../store/departmentContext';
+
 ChartJS.register(CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend);
 
 const Load = () => {
   const [projects, setProjects] = useState([]);
   const [employees, setEmployees] = useState([]);
   const [absences, setAbsences] = useState([]);
-  const { employeeLoad, CAPACITY_PER_DAY } = useLoadEngine(projects, employees, absences);
+
+  const { filterByDepartment } = useDepartment();
+  const deptProjects = filterByDepartment(projects);
+  const deptEmployees = filterByDepartment(employees);
+  const deptAbsences = filterByDepartment(absences);
+
+  const { employeeLoad, CAPACITY_PER_DAY } = useLoadEngine(deptProjects, deptEmployees, deptAbsences);
 
   useEffect(() => {
     const unsubProjects = onSnapshot(query(collection(db, 'projects')), (snap) =>
@@ -74,8 +82,22 @@ const Load = () => {
     responsive: true,
     maintainAspectRatio: false,
     plugins: {
-      legend: { position: 'top', labels: { color: '#94a3b8', padding: 16 } },
+      legend: {
+        position: 'top',
+        labels: {
+          color: '#4b5563',
+          padding: 16,
+          font: { weight: 'bold', family: 'Outfit' }
+        }
+      },
       tooltip: {
+        backgroundColor: '#e0e5ec',
+        titleColor: '#1f2937',
+        bodyColor: '#4b5563',
+        borderColor: '#cbd5e1',
+        borderWidth: 1,
+        padding: 12,
+        cornerRadius: 10,
         callbacks: {
           afterLabel: (ctx) => {
             const employee = employeeLoad[ctx.dataIndex];
@@ -90,11 +112,11 @@ const Load = () => {
       x: {
         stacked: false,
         grid: { display: false },
-        ticks: { color: '#64748b' }
+        ticks: { color: '#6b7280', font: { family: 'Outfit' } }
       },
       y: {
-        grid: { color: 'rgba(255,255,255,0.05)' },
-        ticks: { color: '#64748b' }
+        grid: { color: 'rgba(0, 0, 0, 0.05)' },
+        ticks: { color: '#6b7280', font: { family: 'Outfit' } }
       }
     }
   };
@@ -103,10 +125,10 @@ const Load = () => {
     return (
       <div className="space-y-8">
         <header className="mb-10">
-          <h2 className="text-4xl font-bold tracking-tight bg-gradient-to-r from-white to-white/40 bg-clip-text text-transparent">
+          <h2 className="text-4xl font-bold tracking-tight text-gray-700">
             Навантаження
           </h2>
-          <p className="text-secondary mt-2 text-lg">Розподіл задач між проєктантами</p>
+          <p className="text-gray-500 font-medium mt-2 text-lg">Розподіл задач між проєктантами</p>
         </header>
         <div className="glass-card p-12 text-center">
           <User size={48} className="text-secondary mx-auto mb-4" />
@@ -119,10 +141,10 @@ const Load = () => {
   return (
     <div className="space-y-8">
       <header className="mb-10">
-        <h2 className="text-4xl font-bold tracking-tight bg-gradient-to-r from-white to-white/40 bg-clip-text text-transparent">
+        <h2 className="text-4xl font-bold tracking-tight text-gray-700">
           Навантаження
         </h2>
-        <p className="text-secondary mt-2 text-lg">Розподіл задач між проєктантами</p>
+        <p className="text-gray-500 font-medium mt-2 text-lg">Розподіл задач між проєктантами</p>
       </header>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-8">
@@ -134,21 +156,21 @@ const Load = () => {
           const isUnderloaded = daysLoaded < WORKING_DAYS * 0.4;
 
           return (
-            <div key={index} className="glass-card p-6 hover:border-primary/30 transition-colors">
+            <div key={index} className="neu-flat p-6 transition-all hover:-translate-y-1">
               <div className="flex items-center gap-3 mb-4">
-                <div className="w-10 h-10 rounded-full bg-primary/10 border border-primary/20 flex items-center justify-center">
-                  <User size={18} className="text-primary" />
+                <div className="w-10 h-10 neu-pressed flex items-center justify-center text-primary">
+                  <User size={18} />
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
-                    <p className="font-bold text-sm truncate">{employee.name}</p>
+                    <p className="font-bold text-sm truncate text-gray-700">{employee.name}</p>
                     {employee.isSenior && (
-                      <span className="px-1.5 py-0.5 rounded-md bg-amber-500/10 text-amber-500 text-[9px] font-bold uppercase border border-amber-500/20">
+                      <span className="px-2 py-0.5 rounded-lg neu-pressed text-amber-600 text-[9px] font-bold uppercase">
                         Старший
                       </span>
                     )}
                   </div>
-                  <p className="text-xs text-secondary">
+                  <p className="text-xs text-gray-500 font-medium">
                     {employee.activeCount} задач у роботі ({employee.active} поінтів)
                   </p>
                 </div>
@@ -156,57 +178,57 @@ const Load = () => {
                   <RefreshCw size={16} className="text-amber-500 shrink-0" />
                 ) : (
                   <>
-                    {isOverloaded && <AlertTriangle size={16} className="text-danger shrink-0" />}
-                    {!isOverloaded && !isUnderloaded && <TrendingUp size={16} className="text-success shrink-0" />}
+                    {isOverloaded && <AlertTriangle size={16} className="text-red-500 shrink-0" />}
+                    {!isOverloaded && !isUnderloaded && <TrendingUp size={16} className="text-emerald-500 shrink-0" />}
                   </>
                 )}
               </div>
 
               <div className="mb-4">
-                <div className="flex justify-between text-xs text-secondary mb-1">
+                <div className="flex justify-between text-xs text-gray-500 font-semibold mb-1">
                   <span>{employee.isSenior ? 'В очікуванні розподілу' : 'Завантажена на'}</span>
-                  <span className={isOverloaded && !employee.isSenior ? 'text-danger font-bold' : 'text-white font-semibold'}>
+                  <span className={isOverloaded && !employee.isSenior ? 'text-red-500 font-extrabold' : 'text-gray-800 font-extrabold'}>
                     {employee.isSenior ? `${employee.active} поінтів` : `${daysLoaded} дн.`}
                   </span>
                 </div>
                 {!employee.isSenior && (
                   <>
-                    <div className="h-2 bg-white/5 rounded-full overflow-hidden">
+                    <div className="h-2.5 neu-pressed rounded-full overflow-hidden p-0.5">
                       <div
                         className={`h-full rounded-full transition-all ${
-                          isOverloaded ? 'bg-danger' : isUnderloaded ? 'bg-accent' : 'bg-primary'
+                          isOverloaded ? 'bg-red-500' : isUnderloaded ? 'bg-amber-500' : 'bg-blue-600'
                         }`}
                         style={{ width: `${barWidth}%` }}
                       />
                     </div>
-                    <p className="text-[10px] text-secondary mt-1 text-right">норма: 22 дн./міс.</p>
+                    <p className="text-[10px] text-gray-400 font-bold mt-1 text-right">норма: 22 дн./міс.</p>
                   </>
                 )}
                 {employee.isSenior && (
-                  <div className="h-2 bg-amber-500/10 rounded-full overflow-hidden border border-amber-500/20">
-                    <div className="h-full bg-amber-500/30 w-full animate-pulse" />
+                  <div className="h-2.5 neu-pressed rounded-full overflow-hidden p-0.5">
+                    <div className="h-full bg-amber-500/40 w-full animate-pulse rounded-full" />
                   </div>
                 )}
               </div>
 
               <div className="grid grid-cols-3 gap-2 text-center">
-                <div>
-                  <p className="text-lg font-bold text-primary">
-                    {employee.activeCount} <span className="text-xs font-medium text-primary/80">({employee.active})</span>
+                <div className="neu-pressed p-2 rounded-xl">
+                  <p className="text-lg font-extrabold text-blue-600">
+                    {employee.activeCount} <span className="text-xs font-semibold text-blue-500">({employee.active})</span>
                   </p>
-                  <p className="text-[10px] text-secondary uppercase tracking-wider">В роботі</p>
+                  <p className="text-[10px] text-gray-500 font-bold uppercase tracking-wider">В роботі</p>
                 </div>
-                <div>
-                  <p className="text-lg font-bold text-success">
-                    {employee.completedCount} <span className="text-xs font-medium text-success/80">({employee.completed})</span>
+                <div className="neu-pressed p-2 rounded-xl">
+                  <p className="text-lg font-extrabold text-emerald-600">
+                    {employee.completedCount} <span className="text-xs font-semibold text-emerald-500">({employee.completed})</span>
                   </p>
-                  <p className="text-[10px] text-secondary uppercase tracking-wider">Закрито</p>
+                  <p className="text-[10px] text-gray-500 font-bold uppercase tracking-wider">Закрито</p>
                 </div>
-                <div>
-                  <p className="text-lg font-bold text-danger">
-                    {employee.overdueCount} <span className="text-xs font-medium text-danger/80">({employee.overdue})</span>
+                <div className="neu-pressed p-2 rounded-xl">
+                  <p className="text-lg font-extrabold text-red-500">
+                    {employee.overdueCount} <span className="text-xs font-semibold text-red-400">({employee.overdue})</span>
                   </p>
-                  <p className="text-[10px] text-secondary uppercase tracking-wider">Прострочено</p>
+                  <p className="text-[10px] text-gray-500 font-bold uppercase tracking-wider">Прострочено</p>
                 </div>
               </div>
             </div>
@@ -214,9 +236,9 @@ const Load = () => {
         })}
       </div>
 
-      <div className="glass-card p-8 h-[420px]">
-        <h3 className="text-xl font-bold tracking-tight mb-6">Зведений графік навантаження</h3>
-        <div className="h-[320px]">
+      <div className="neu-flat p-8 h-[440px]">
+        <h3 className="text-xl font-bold tracking-tight text-gray-700 mb-6">Зведений графік навантаження</h3>
+        <div className="h-[340px] neu-pressed p-6 rounded-3xl">
           <Bar data={chartData} options={chartOptions} />
         </div>
       </div>

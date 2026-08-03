@@ -24,6 +24,8 @@ import {
 } from 'lucide-react';
 import { normalizeImportedProjectDate, parseDateOnly } from '../lib/dateUtils';
 
+import { useDepartment } from '../store/departmentContext';
+
 ChartJS.register(
   CategoryScale,
   LinearScale,
@@ -39,7 +41,13 @@ const Dashboard = ({ setActiveTab, setProjectFilter }) => {
   const [projects, setProjects] = useState([]);
   const [employees, setEmployees] = useState([]);
   const [absences, setAbsences] = useState([]);
-  const { departmentLoad } = useLoadEngine(projects, employees, absences);
+
+  const { filterByDepartment, departmentLabel } = useDepartment();
+  const deptProjects = filterByDepartment(projects);
+  const deptEmployees = filterByDepartment(employees);
+  const deptAbsences = filterByDepartment(absences);
+
+  const { departmentLoad } = useLoadEngine(deptProjects, deptEmployees, deptAbsences);
 
   useEffect(() => {
     const qProjects = query(collection(db, 'projects'), orderBy('createdAt', 'desc'));
@@ -64,8 +72,21 @@ const Dashboard = ({ setActiveTab, setProjectFilter }) => {
     };
   }, []);
 
+  const maxImportedAt = projects
+    .map(p => p.importedAt)
+    .filter(Boolean)
+    .sort()
+    .reverse()[0];
+
+  const lastUpdateTime = maxImportedAt
+    ? new Date(maxImportedAt).toLocaleString('uk-UA', {
+        day: '2-digit', month: '2-digit', year: 'numeric',
+        hour: '2-digit', minute: '2-digit'
+      })
+    : 'Невідомо';
+
   const calculatePoints = (status) =>
-    projects
+    deptProjects
       .filter((project) => project.status === status)
       .reduce((sum, project) => sum + (project.points || 0), 0);
 
@@ -73,7 +94,7 @@ const Dashboard = ({ setActiveTab, setProjectFilter }) => {
     const todayStr = new Date().toISOString().split('T')[0];
     const todayDate = new Date(todayStr);
 
-    return projects
+    return deptProjects
       .filter((project) => {
         if (project.status === 'overdue') return true;
         if (project.status !== 'active' || !project.deadline || project.deadline === '-') return false;
@@ -89,7 +110,7 @@ const Dashboard = ({ setActiveTab, setProjectFilter }) => {
     const currentMonth = now.getMonth();
     const currentYear = now.getFullYear();
 
-    return projects
+    return deptProjects
       .filter((project) => {
         if (project.status !== 'completed') return false;
         if (!project.completedAt) return false;
@@ -104,6 +125,41 @@ const Dashboard = ({ setActiveTab, setProjectFilter }) => {
       .reduce((sum, project) => sum + (project.points || 0), 0);
   };
 
+  const calculateTaskCount = (status) =>
+    deptProjects.filter((project) => project.status === status).length;
+
+  const calculateOverdueTasks = () => {
+    const todayStr = new Date().toISOString().split('T')[0];
+    const todayDate = new Date(todayStr);
+
+    return deptProjects.filter((project) => {
+      if (project.status === 'overdue') return true;
+      if (project.status !== 'active' || !project.deadline || project.deadline === '-') return false;
+
+      const deadlineDate = new Date(project.deadline);
+      return !Number.isNaN(deadlineDate.getTime()) && deadlineDate < todayDate;
+    }).length;
+  };
+
+  const calculateCompletedThisMonthTasks = () => {
+    const now = new Date();
+    const currentMonth = now.getMonth();
+    const currentYear = now.getFullYear();
+
+    return deptProjects.filter((project) => {
+      if (project.status !== 'completed') return false;
+      if (!project.completedAt) return false;
+
+      const parsedDate = parseDateOnly(
+        normalizeImportedProjectDate(project.completedAt, { preferPast: true })
+      );
+      if (!parsedDate) return false;
+
+      return parsedDate.getMonth() === currentMonth && parsedDate.getFullYear() === currentYear;
+    }).length;
+  };
+
+  const totalTasksCount = deptProjects.filter((p) => p.status !== 'completed').length;
   const totalDepartmentBacklog = departmentLoad[0]?.load || 0;
 
   const stats = [
@@ -111,14 +167,16 @@ const Dashboard = ({ setActiveTab, setProjectFilter }) => {
       id: 'all',
       label: 'Усього на відділі',
       value: totalDepartmentBacklog,
+      tasksCount: totalTasksCount,
       icon: Layers3,
-      color: 'text-cyan-400',
+      color: 'text-cyan-500',
       featured: true
     },
     {
       id: 'active',
       label: 'Поінти в роботі',
       value: calculatePoints('active'),
+      tasksCount: calculateTaskCount('active'),
       icon: ClipboardCheck,
       color: 'text-primary'
     },
@@ -126,22 +184,25 @@ const Dashboard = ({ setActiveTab, setProjectFilter }) => {
       id: 'waiting',
       label: 'В очікуванні',
       value: calculatePoints('waiting'),
+      tasksCount: calculateTaskCount('waiting'),
       icon: Clock,
-      color: 'text-accent'
+      color: 'text-amber-500'
     },
     {
       id: 'overdue',
       label: 'Протерміновані поінти',
       value: calculateOverduePoints(),
+      tasksCount: calculateOverdueTasks(),
       icon: AlertTriangle,
-      color: 'text-danger'
+      color: 'text-red-500'
     },
     {
       id: 'completedThisMonth',
       label: 'Закрито за поточний місяць',
       value: calculateCompletedThisMonth(),
+      tasksCount: calculateCompletedThisMonthTasks(),
       icon: CheckCircle,
-      color: 'text-success'
+      color: 'text-emerald-500'
     }
   ];
 
@@ -203,30 +264,32 @@ const Dashboard = ({ setActiveTab, setProjectFilter }) => {
       legend: {
         position: 'top',
         labels: {
-          color: '#cbd5e1',
+          color: '#4b5563',
           usePointStyle: true,
           boxWidth: 10,
-          padding: 18
+          padding: 18,
+          font: { weight: 'bold', family: 'Outfit' }
         }
       },
       tooltip: {
-        backgroundColor: 'rgba(15, 23, 42, 0.95)',
-        titleColor: '#fff',
-        bodyColor: '#cbd5e1',
-        borderColor: 'rgba(255,255,255,0.12)',
+        backgroundColor: '#e0e5ec',
+        titleColor: '#1f2937',
+        bodyColor: '#4b5563',
+        borderColor: '#cbd5e1',
         borderWidth: 1,
         padding: 12,
-        cornerRadius: 10
+        cornerRadius: 10,
+        boxPadding: 6
       }
     },
     scales: {
       x: {
         grid: { display: false },
-        ticks: { color: '#64748b' }
+        ticks: { color: '#6b7280', font: { family: 'Outfit' } }
       },
       y: {
-        grid: { color: 'rgba(255, 255, 255, 0.05)' },
-        ticks: { color: '#64748b' }
+        grid: { color: 'rgba(0, 0, 0, 0.05)' },
+        ticks: { color: '#6b7280', font: { family: 'Outfit' } }
       }
     }
   };
@@ -235,18 +298,19 @@ const Dashboard = ({ setActiveTab, setProjectFilter }) => {
     <div className="space-y-8">
       <header className="mb-10 flex justify-between items-start">
         <div>
-          <h2 className="text-4xl font-bold tracking-tight bg-gradient-to-r from-white to-white/40 bg-clip-text text-transparent">
+          <h2 className="text-4xl font-bold tracking-tight text-gray-700">
             Панель керування
           </h2>
-          <p className="text-secondary mt-2 text-lg">Огляд реального навантаження відділу у реальному часі</p>
+          <p className="text-gray-500 mt-2 text-lg font-medium">Огляд реального навантаження відділу у реальному часі</p>
         </div>
-        <button
-          onClick={() => setActiveTab('audit')}
-          className="btn-primary flex items-center gap-2 py-3 px-6 shadow-lg shadow-primary/20 hover:scale-105 transition-transform"
-        >
-          <PieChart size={20} />
-          <span>Відкрити звітність</span>
-        </button>
+        
+        <div className="neu-pressed px-4 py-3 rounded-2xl flex items-center gap-3">
+          <Clock size={18} className="text-gray-400" />
+          <div className="flex flex-col">
+            <span className="text-[10px] uppercase tracking-widest font-bold text-gray-400">Останнє оновлення</span>
+            <span className="text-sm font-bold text-gray-700">{lastUpdateTime}</span>
+          </div>
+        </div>
       </header>
 
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-6 mb-10">
@@ -254,42 +318,37 @@ const Dashboard = ({ setActiveTab, setProjectFilter }) => {
           <div
             key={stat.id}
             onClick={() => handleStatClick(stat.id)}
-            className={`glass-card p-6 flex items-center gap-5 group cursor-pointer transition-colors hover:bg-white/[0.02] ${
-              stat.featured
-                ? 'border-cyan-400/30 hover:border-cyan-400/60 bg-cyan-400/[0.03]'
-                : 'hover:border-primary/50'
-            }`}
+            className="neu-flat p-6 flex items-center gap-5 group cursor-pointer transition-all hover:-translate-y-1"
           >
-            <div
-              className={`p-4 rounded-2xl ${
-                stat.featured ? 'bg-cyan-400/10 ring-1 ring-cyan-400/20' : 'bg-white/5'
-              } ${stat.color} transition-transform group-hover:scale-110`}
-            >
-              <stat.icon size={28} />
+            <div className="neu-btn p-3.5 rounded-2xl flex items-center justify-center">
+              <stat.icon size={26} className={stat.color} />
             </div>
             <div>
-              <p className="text-secondary text-xs font-bold uppercase tracking-widest mb-1">{stat.label}</p>
-              <p className="text-3xl font-bold tracking-tight">{stat.value}</p>
+              <p className="text-gray-400 text-xs font-bold uppercase tracking-widest mb-1">{stat.label}</p>
+              <p className="text-3xl font-bold tracking-tight text-gray-700">{stat.value}</p>
+              <span className="neu-pressed px-2.5 py-0.5 rounded-lg text-[11px] font-extrabold text-primary mt-1.5 inline-block">
+                {stat.tasksCount} задач
+              </span>
             </div>
           </div>
         ))}
       </div>
 
-      <div className="glass-card p-8 h-[500px] hover:shadow-primary/5">
-        <div className="flex justify-between items-center mb-8">
-          <h3 className="text-xl font-bold tracking-tight">Графік завантаження (42 поінти/день)</h3>
-          <div className="flex gap-4 text-xs font-medium text-secondary">
+      <div className="neu-flat p-8 h-[520px]">
+        <div className="flex justify-between items-center mb-6">
+          <h3 className="text-xl font-bold tracking-tight text-gray-700">Графік завантаження (42 поінти/день)</h3>
+          <div className="flex gap-4 text-xs font-bold text-gray-500">
             <div className="flex items-center gap-2">
-              <div className="w-3 h-3 rounded-full bg-primary shadow-[0_0_10px_rgba(59,130,246,0.55)]"></div>
+              <div className="w-3 h-3 rounded-full bg-blue-500"></div>
               <span>Завантаження</span>
             </div>
             <div className="flex items-center gap-2">
-              <div className="w-3 h-3 rounded-sm bg-amber-400 shadow-[0_0_12px_rgba(251,191,36,0.7)]"></div>
+              <div className="w-3 h-3 rounded-sm bg-amber-500"></div>
               <span>Потужність</span>
             </div>
           </div>
         </div>
-        <div className="h-[380px]">
+        <div className="h-[400px] neu-pressed p-6 rounded-3xl">
           <Line data={chartData} options={chartOptions} />
         </div>
       </div>

@@ -1,9 +1,12 @@
 import React, { useState, useEffect } from 'react';
+import CustomDatePicker from '../components/CustomDatePicker';
 import { collection, onSnapshot, addDoc, deleteDoc, doc, serverTimestamp, updateDoc } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { useAuth } from '../store/useAuth';
 import { Users, Plus, Trash2, RefreshCw, Shield, UserCog } from 'lucide-react';
 import { triggerGlobalSync } from '../lib/syncUtils';
+
+import { useDepartment } from '../store/departmentContext';
 
 const ABSENCE_TYPES = [
   { value: 'sick', label: 'Лікарняний', emoji: '🏥', color: 'text-orange-400' },
@@ -32,6 +35,10 @@ const Team = () => {
   const [users, setUsers] = useState([]);
   const [absences, setAbsences] = useState([]);
   const { role, user } = useAuth();
+  const { filterByDepartment, teamTabLabel, activeDepartment, employeeSingleTitle } = useDepartment();
+
+  const deptEmployees = filterByDepartment(employees);
+  const deptAbsences = filterByDepartment(absences);
 
   const [showAbsenceFor, setShowAbsenceFor] = useState(null);
   const [absenceType, setAbsenceType] = useState('sick');
@@ -101,7 +108,7 @@ const Team = () => {
   };
 
   const getAbsencesForEmp = (empId) =>
-    absences.filter((absence) => absence.employeeId === empId).sort((a, b) => new Date(a.startDate) - new Date(b.startDate));
+    deptAbsences.filter((absence) => absence.employeeId === empId).sort((a, b) => new Date(a.startDate) - new Date(b.startDate));
 
   const handleAddAbsence = async (employee) => {
     if (!absenceStart || !absenceEnd) return;
@@ -116,6 +123,7 @@ const Team = () => {
       type: absenceType,
       startDate: absenceStart,
       endDate: absenceEnd,
+      department: activeDepartment,
       days: countWorkingDays(absenceStart, absenceEnd),
       createdAt: serverTimestamp(),
     });
@@ -144,10 +152,10 @@ const Team = () => {
 
       <header className="mb-10 flex justify-between items-start">
         <div>
-          <h2 className="text-4xl font-bold tracking-tight bg-gradient-to-r from-white to-white/40 bg-clip-text text-transparent">
-            Команда
+          <h2 className="text-4xl font-bold tracking-tight text-gray-700">
+            {teamTabLabel}
           </h2>
-          <p className="text-secondary mt-2 text-lg">Управління виконавцями, акаунтами та доступністю</p>
+          <p className="text-gray-500 font-medium mt-2 text-lg">Управління виконавцями, акаунтами та доступністю</p>
         </div>
         {syncing && (
           <div className="flex items-center gap-3 px-4 py-2 bg-primary/10 border border-primary/20 rounded-xl animate-pulse">
@@ -226,7 +234,7 @@ const Team = () => {
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {employees.map((employee) => {
+          {deptEmployees.map((employee) => {
             const employeeAbsences = getAbsencesForEmp(employee.id);
             const activeAbsence = employeeAbsences.find((absence) => absence.startDate <= today && absence.endDate >= today);
             const isShowingAbsenceForm = showAbsenceFor === employee.id;
@@ -258,7 +266,7 @@ const Team = () => {
                         <span className={activeAbsence.type === 'sick' ? 'text-orange-400' : 'text-emerald-400'}>
                           {activeAbsence.type === 'sick' ? 'Лікарняний' : 'Відпустка'} до {new Date(activeAbsence.endDate).toLocaleDateString('uk-UA')}
                         </span>
-                      ) : (employee.role || 'Проєктант')}
+                      ) : (employee.role || employeeSingleTitle)}
                     </p>
                   </div>
                   {role === 'admin' && (
@@ -275,7 +283,7 @@ const Team = () => {
                             : 'border-white/10 text-secondary hover:border-amber-500/30 hover:text-amber-500'
                         }`}
                       >
-                        {employee.isSenior ? 'Старший' : 'Проєктант'}
+                        {employee.isSenior ? 'Старший' : employeeSingleTitle}
                       </button>
                       <button
                         onClick={() => setShowAbsenceFor(isShowingAbsenceForm ? null : employee.id)}
@@ -323,22 +331,18 @@ const Team = () => {
                     </div>
                     <div className="grid grid-cols-2 gap-2">
                       <div>
-                        <label className="text-[10px] text-secondary uppercase tracking-wide block mb-1">Початок</label>
-                        <input
-                          type="date"
+                        <label className="text-[10px] text-gray-500 font-extrabold uppercase tracking-wide block mb-1">Початок</label>
+                        <CustomDatePicker
                           value={absenceStart}
-                          onChange={(event) => setAbsenceStart(event.target.value)}
-                          className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-primary/50"
+                          onChange={setAbsenceStart}
                         />
                       </div>
                       <div>
-                        <label className="text-[10px] text-secondary uppercase tracking-wide block mb-1">Кінець</label>
-                        <input
-                          type="date"
+                        <label className="text-[10px] text-gray-500 font-extrabold uppercase tracking-wide block mb-1">Кінець</label>
+                        <CustomDatePicker
                           value={absenceEnd}
-                          onChange={(event) => setAbsenceEnd(event.target.value)}
                           min={absenceStart}
-                          className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-primary/50"
+                          onChange={setAbsenceEnd}
                         />
                       </div>
                     </div>

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import Sidebar from './components/Sidebar';
 import Dashboard from './tabs/Dashboard';
 import Projects from './tabs/Projects';
@@ -8,8 +8,13 @@ import Team from './tabs/Team';
 import DirectionAudit from './tabs/DirectionAudit';
 import ItemsAudit from './tabs/ItemsAudit';
 import Flow from './tabs/Flow';
+import AiAssistant from './tabs/AiAssistant';
 import { AuthProvider } from './store/authContext';
 import { useAuth } from './store/useAuth';
+import { collection, doc, getDocs, deleteField, serverTimestamp, writeBatch } from 'firebase/firestore';
+import { db } from './lib/firebase';
+import { getImportedProjectKey } from './lib/excelUtils';
+import { triggerGlobalSync } from './lib/syncUtils';
 
 const LoginScreen = () => {
   const { login, register, isFirebaseConfigured } = useAuth();
@@ -152,17 +157,165 @@ const LoginScreen = () => {
   );
 };
 
+import { DepartmentProvider } from './store/departmentContext';
+
+const saveGlobalImportedProjects = async (imported, targetDepartment = 'design') => {
+  console.log('[GlobalAutoSync] Processing projects count:', imported?.length, 'Target Department:', targetDepartment);
+  if (!imported || imported.length === 0) return;
+
+  try {
+    const existingSnapshot = await getDocs(collection(db, 'projects'));
+    const existingProjects = existingSnapshot.docs.map((projectDoc) => ({
+      ...projectDoc.data(),
+      docId: projectDoc.id
+    }));
+
+    const existingBitrixByKey = new Map();
+    const duplicateExistingIds = [];
+
+    existingProjects.forEach((project) => {
+      const sourceKey = getImportedProjectKey(project);
+      if (!sourceKey) return;
+      const dept = project.department || 'design';
+      const scopedKey = `${sourceKey}_${dept}`;
+
+      if (!existingBitrixByKey.has(scopedKey)) {
+        existingBitrixByKey.set(scopedKey, project);
+      } else {
+        duplicateExistingIds.push(project.docId);
+      }
+    });
+
+    const importedByKey = new Map();
+    imported.forEach((project) => {
+      const sourceKey = getImportedProjectKey(project);
+      if (!sourceKey) return;
+      importedByKey.set(sourceKey, { ...project, sourceKey, department: targetDepartment });
+    });
+
+    const batch = writeBatch(db);
+    let createdCount = 0;
+    let updatedCount = 0;
+
+    importedByKey.forEach((project, sourceKey) => {
+      const scopedKey = `${sourceKey}_${targetDepartment}`;
+      const existingProject = existingBitrixByKey.get(scopedKey);
+      const { id: importedBitrixId, ...projectData } = project;
+
+      if (existingProject) {
+        batch.set(
+          doc(db, 'projects', existingProject.docId),
+          {
+            ...projectData,
+            externalId: importedBitrixId,
+            id: deleteField(),
+            department: targetDepartment,
+            createdAt: existingProject.createdAt || serverTimestamp(),
+            importedAt: new Date().toISOString(),
+            updatedAt: serverTimestamp()
+          },
+          { merge: true }
+        );
+        updatedCount++;
+      } else {
+        const newDocRef = doc(collection(db, 'projects'));
+        batch.set(newDocRef, {
+          ...projectData,
+          externalId: importedBitrixId,
+          sourceKey,
+          department: targetDepartment,
+          createdAt: serverTimestamp(),
+          importedAt: new Date().toISOString(),
+          updatedAt: serverTimestamp()
+        });
+        createdCount++;
+      }
+    });
+
+    duplicateExistingIds.forEach((projectId) => {
+      batch.delete(doc(db, 'projects', projectId));
+    });
+
+    await batch.commit();
+    await triggerGlobalSync();
+    console.log(`[GlobalAutoSync] Успішно оновлено ${importedByKey.size} задач для відділу "${targetDepartment}".`);
+  } catch (err) {
+    console.error('[GlobalAutoSync] Error:', err);
+  }
+};
+
 const AppContent = () => {
   const [activeTab, setActiveTab] = useState('dashboard');
   const [projectFilter, setProjectFilter] = useState('all');
   const { user } = useAuth();
+
+  useEffect(() => {
+    if (!user) return;
+
+    let syncQueue = Promise.resolve();
+    const queueSync = (projects, department) => {
+      console.log(`[GlobalAutoSync] Queuing sync for department "${department}", count: ${projects?.length}`);
+      syncQueue = syncQueue
+        .then(() => saveGlobalImportedProjects(projects, department))
+        .catch((err) => console.error('[GlobalAutoSync] Queue error:', err));
+      return syncQueue;
+    };
+
+    let channel;
+    try {
+      channel = new BroadcastChannel('lm_bitrix_sync');
+      channel.onmessage = (event) => {
+        if (event.data?.type === 'BITRIX_AUTO_SYNC' && Array.isArray(event.data?.projects)) {
+          queueSync(event.data.projects, event.data.department || 'design');
+        }
+      };
+    } catch (e) {
+      console.warn('BroadcastChannel not supported', e);
+    }
+
+    const handleWindowMessage = (event) => {
+      if (event.data?.type === 'BITRIX_AUTO_SYNC' && Array.isArray(event.data?.projects)) {
+        queueSync(event.data.projects, event.data.department || 'design');
+      }
+    };
+
+    window.addEventListener('message', handleWindowMessage);
+
+    const checkLocalStorageSync = () => {
+      const pendingData = localStorage.getItem('LM_PENDING_AUTO_SYNC');
+      if (pendingData) {
+        try {
+          const parsed = JSON.parse(pendingData);
+          localStorage.removeItem('LM_PENDING_AUTO_SYNC');
+          if (typeof parsed === 'object' && Array.isArray(parsed.projects)) {
+            queueSync(parsed.projects, parsed.department || 'design');
+          } else if (Array.isArray(parsed) && parsed.length > 0) {
+            queueSync(parsed, 'design');
+          }
+        } catch (e) {
+          console.error('Error parsing pending auto-sync data:', e);
+        }
+      }
+    };
+
+    checkLocalStorageSync();
+    window.addEventListener('focus', checkLocalStorageSync);
+    window.addEventListener('storage', checkLocalStorageSync);
+
+    return () => {
+      if (channel) channel.close();
+      window.removeEventListener('message', handleWindowMessage);
+      window.removeEventListener('focus', checkLocalStorageSync);
+      window.removeEventListener('storage', checkLocalStorageSync);
+    };
+  }, [user]);
 
   if (!user) {
     return <LoginScreen />;
   }
 
   return (
-    <div className="flex h-screen bg-background text-slate-200">
+    <div className="flex h-screen bg-[#e0e5ec] text-gray-700 font-sans antialiased">
       <Sidebar activeTab={activeTab} setActiveTab={setActiveTab} />
       <main className="flex-1 overflow-y-auto p-8">
         {activeTab === 'dashboard' && <Dashboard setActiveTab={setActiveTab} setProjectFilter={setProjectFilter} />}
@@ -173,6 +326,7 @@ const AppContent = () => {
         {activeTab === 'load' && <Load />}
         {activeTab === 'flow' && <Flow />}
         {activeTab === 'team' && <Team />}
+        {/* {activeTab === 'ai' && <AiAssistant />} */}
       </main>
     </div>
   );
@@ -180,7 +334,9 @@ const AppContent = () => {
 
 const App = () => (
   <AuthProvider>
-    <AppContent />
+    <DepartmentProvider>
+      <AppContent />
+    </DepartmentProvider>
   </AuthProvider>
 );
 

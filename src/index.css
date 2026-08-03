@@ -1,14 +1,14 @@
 @import "tailwindcss";
 
 @theme {
-  --color-background: #050505;
-  --color-surface: #121212;
+  --color-background: #e0e5ec;
+  --color-surface: #e0e5ec;
   --color-primary: #3d5afe;
   --color-secondary: #64748b;
-  --color-accent: #ffab00;
-  --color-danger: #ff1744;
-  --color-success: #00e676;
-  --color-border: #1f1f1f;
+  --color-accent: #f59e0b;
+  --color-danger: #ef4444;
+  --color-success: #10b981;
+  --color-border: #cbd5e1;
   
   --font-sans: "Outfit", "Inter", system-ui, sans-serif;
   
@@ -18,27 +18,96 @@
 
 @layer base {
   body {
-    @apply bg-background text-slate-100 antialiased selection:bg-primary/30;
+    background-color: #e0e5ec;
+    color: #374151;
+    font-family: var(--font-sans);
+    antialiased: true;
   }
 }
 
 @layer components {
+  /* Neumorphism Flat Card / Panel */
+  .neu-flat {
+    background-color: #e0e5ec;
+    box-shadow: 9px 9px 16px rgba(163, 177, 198, 0.6), 
+               -9px -9px 16px rgba(255, 255, 255, 0.5);
+    border-radius: 1.25rem;
+  }
+
+  /* Neumorphism Pressed / Inset */
+  .neu-pressed {
+    background-color: #e0e5ec;
+    box-shadow: inset 6px 6px 10px 0 rgba(163, 177, 198, 0.7),
+                inset -6px -6px 10px 0 rgba(255, 255, 255, 0.8);
+    border-radius: 1.25rem;
+  }
+
+  /* Neumorphism Interactive Button */
+  .neu-btn {
+    background-color: #e0e5ec;
+    box-shadow: 6px 6px 10px rgba(163, 177, 198, 0.6), 
+               -6px -6px 10px rgba(255, 255, 255, 0.5);
+    border-radius: 1rem;
+    transition: all 0.2s ease-in-out;
+    cursor: pointer;
+  }
+
+  .neu-btn:hover {
+    box-shadow: 8px 8px 12px rgba(163, 177, 198, 0.7), 
+               -8px -8px 12px rgba(255, 255, 255, 0.6);
+  }
+
+  .neu-btn:active {
+    box-shadow: inset 4px 4px 8px rgba(163, 177, 198, 0.7),
+                inset -4px -4px 8px rgba(255, 255, 255, 0.8);
+  }
+
+  /* Active Menu Item */
+  .neu-menu-active {
+    background-color: #e0e5ec;
+    box-shadow: inset 4px 4px 8px rgba(163, 177, 198, 0.7),
+                inset -4px -4px 8px rgba(255, 255, 255, 0.8);
+    color: #3d5afe;
+    border-radius: 1rem;
+  }
+
+  /* Backward compatibility for glass-card */
   .glass-card {
-    @apply bg-surface border border-border shadow-2xl rounded-2xl transition-all duration-300;
-    backdrop-filter: blur(12px);
+    background-color: #e0e5ec;
+    box-shadow: 9px 9px 16px rgba(163, 177, 198, 0.6), 
+               -9px -9px 16px rgba(255, 255, 255, 0.5);
+    border-radius: 1.25rem;
   }
 
   .sidebar-link {
-    @apply flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 text-secondary hover:text-white hover:bg-white/5;
+    @apply flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 text-slate-600 hover:text-primary;
   }
 
   .sidebar-link.active {
-    @apply bg-primary/10 text-primary border-l-4 border-primary shadow-[0_0_20px_rgba(61,90,254,0.1)];
+    box-shadow: inset 4px 4px 8px rgba(163, 177, 198, 0.7),
+                inset -4px -4px 8px rgba(255, 255, 255, 0.8);
+    color: #3d5afe;
   }
 
   .btn-primary {
-    @apply bg-primary hover:bg-primary/90 text-white px-6 py-2.5 rounded-xl font-semibold shadow-lg shadow-primary/20 
-           transition-all duration-200 active:scale-95 flex items-center justify-center gap-2;
+    background-color: #e0e5ec;
+    color: #3d5afe;
+    box-shadow: 6px 6px 10px rgba(163, 177, 198, 0.6), 
+               -6px -6px 10px rgba(255, 255, 255, 0.5);
+    padding: 0.625rem 1.5rem;
+    border-radius: 0.75rem;
+    font-weight: 600;
+    transition: all 0.2s ease-in-out;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    cursor: pointer;
+  }
+
+  .btn-primary:active {
+    box-shadow: inset 4px 4px 8px rgba(163, 177, 198, 0.7),
+                inset -4px -4px 8px rgba(255, 255, 255, 0.8);
   }
   
   .badge {
@@ -46,7 +115,7 @@
   }
   
   .table-header {
-    @apply px-6 py-4 text-secondary text-xs font-bold uppercase tracking-widest border-b border-border;
+    @apply px-6 py-4 text-slate-500 text-xs font-bold uppercase tracking-widest border-b border-gray-300;
   }
 }
 
@@ -55,8 +124,12 @@
   width: 8px;
 }
 ::-webkit-scrollbar-track {
-  @apply bg-background;
+  background: #e0e5ec;
 }
 ::-webkit-scrollbar-thumb {
-  @apply bg-border rounded-full hover:bg-white/10;
+  background: #cbd5e1;
+  border-radius: 9999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
 }

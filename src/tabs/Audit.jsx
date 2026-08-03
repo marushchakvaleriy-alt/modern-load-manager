@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import CustomDatePicker from '../components/CustomDatePicker';
 import { collection, onSnapshot } from 'firebase/firestore';
 import {
   Award,
@@ -12,19 +13,34 @@ import {
 import { db } from '../lib/firebase';
 import { useLoadEngine } from '../hooks/useLoadEngine';
 
+import { useDepartment } from '../store/departmentContext';
+
 const getMonthStartValue = () => {
   const today = new Date();
-  return new Date(today.getFullYear(), today.getMonth(), 1).toISOString().split('T')[0];
+  const year = today.getFullYear();
+  const month = String(today.getMonth() + 1).padStart(2, '0');
+  return `${year}-${month}-01`;
 };
 
-const getTodayValue = () => new Date().toISOString().split('T')[0];
+const getTodayValue = () => {
+  const today = new Date();
+  const year = today.getFullYear();
+  const month = String(today.getMonth() + 1).padStart(2, '0');
+  const day = String(today.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
 
 const Audit = () => {
   const [projects, setProjects] = useState([]);
   const [employees, setEmployees] = useState([]);
   const [startDate, setStartDate] = useState(getMonthStartValue);
   const [endDate, setEndDate] = useState(getTodayValue);
-  const { calculateEfficiency, CAPACITY_PER_DAY } = useLoadEngine(projects, employees);
+
+  const { filterByDepartment, auditTabLabel, employeeSingleTitle } = useDepartment();
+  const deptProjects = filterByDepartment(projects);
+  const deptEmployees = filterByDepartment(employees);
+
+  const { calculateEfficiency, CAPACITY_PER_DAY } = useLoadEngine(deptProjects, deptEmployees);
 
   useEffect(() => {
     const unsubProjects = onSnapshot(collection(db, 'projects'), (snap) =>
@@ -44,47 +60,44 @@ const Audit = () => {
     <div className="space-y-8">
       <header className="mb-10 space-y-6">
         <div>
-          <h2 className="bg-gradient-to-r from-white to-white/40 bg-clip-text text-4xl font-bold tracking-tight text-transparent">
-            Аудит виконання
+          <h2 className="text-4xl font-bold tracking-tight text-gray-700">
+            {auditTabLabel}
           </h2>
-          <p className="mt-2 text-lg text-secondary">
+          <p className="mt-2 text-lg text-gray-500 font-medium">
             Поточний прогрес за вибраний період відносно плану
           </p>
         </div>
 
-        <div className="glass-card flex flex-col gap-4 p-4 sm:flex-row sm:items-end">
-          <label className="space-y-2">
-            <span className="text-xs font-bold uppercase tracking-widest text-secondary">Дата з</span>
-            <input
-              type="date"
+        <div className="neu-pressed flex flex-wrap items-center gap-6 p-4 rounded-2xl">
+          <div className="flex items-center gap-3">
+            <span className="text-xs font-bold uppercase tracking-widest text-gray-500">Дата з:</span>
+            <CustomDatePicker
               value={startDate}
               max={endDate}
-              onChange={(e) => setStartDate(e.target.value)}
-              className="rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 text-sm font-semibold text-white outline-none transition focus:border-primary/50"
+              onChange={setStartDate}
             />
-          </label>
-          <label className="space-y-2">
-            <span className="text-xs font-bold uppercase tracking-widest text-secondary">Дата до</span>
-            <input
-              type="date"
+          </div>
+
+          <div className="flex items-center gap-3">
+            <span className="text-xs font-bold uppercase tracking-widest text-gray-500">Дата до:</span>
+            <CustomDatePicker
               value={endDate}
               min={startDate}
-              onChange={(e) => setEndDate(e.target.value)}
-              className="rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 text-sm font-semibold text-white outline-none transition focus:border-primary/50"
+              onChange={setEndDate}
             />
-          </label>
+          </div>
         </div>
       </header>
 
       <div className="grid grid-cols-1 gap-6">
-        {employees.length === 0 && (
+        {deptEmployees.length === 0 && (
           <div className="glass-card p-20 text-center">
             <Award className="mx-auto mb-4 text-white/5" size={64} />
             <p className="text-lg text-secondary">Немає даних про виконавців для аудиту.</p>
           </div>
         )}
 
-        {employees.map((employee) => {
+        {deptEmployees.map((employee) => {
           const stats = calculateEfficiency(employee.name, startDate, endDate);
           const progress = Math.round(stats.efficiency);
           const progressBarWidth = Math.min(progress, 100);
@@ -104,7 +117,7 @@ const Audit = () => {
                   <h3 className="text-2xl font-bold tracking-tight">{employee.name}</h3>
                   <div className="mt-1 flex items-center gap-2">
                     <span className="h-2 w-2 animate-pulse rounded-full bg-success"></span>
-                    <p className="text-sm font-medium text-secondary">Проєктант відділу</p>
+                    <p className="text-sm font-medium text-secondary">{employeeSingleTitle} відділу</p>
                   </div>
                 </div>
               </div>

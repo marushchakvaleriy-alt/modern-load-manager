@@ -18,6 +18,9 @@ import { Activity, CheckCircle, Database, Inbox, TrendingUp, Users, Zap } from '
 import { db } from '../lib/firebase';
 import { useLoadEngine } from '../hooks/useLoadEngine';
 import { formatDateOnly, normalizeImportedProjectDate } from '../lib/dateUtils';
+import CustomSelect from '../components/CustomSelect';
+
+import CustomDatePicker from '../components/CustomDatePicker';
 
 ChartJS.register(
   CategoryScale,
@@ -46,19 +49,34 @@ const formatPeople = (value) => {
   return Number.isInteger(value) ? String(value) : value.toFixed(1);
 };
 
+import { useDepartment } from '../store/departmentContext';
+
 const Flow = () => {
   const [projects, setProjects] = useState([]);
   const [employees, setEmployees] = useState([]);
   const [absences, setAbsences] = useState([]);
+
+  const { filterByDepartment } = useDepartment();
+  const deptProjects = filterByDepartment(projects);
+  const deptEmployees = filterByDepartment(employees);
+  const deptAbsences = filterByDepartment(absences);
+
   const [selectedDirection, setSelectedDirection] = useState(ALL_DIRECTIONS_VALUE);
-  const [endDate, setEndDate] = useState(new Date().toISOString().split('T')[0]);
+  const [endDate, setEndDate] = useState(() => {
+    const today = new Date();
+    const year = today.getFullYear();
+    const month = String(today.getMonth() + 1).padStart(2, '0');
+    const day = String(today.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  });
   const [startDate, setStartDate] = useState(() => {
-    const initialStart = new Date();
-    initialStart.setDate(1);
-    return initialStart.toISOString().split('T')[0];
+    const today = new Date();
+    const year = today.getFullYear();
+    const month = String(today.getMonth() + 1).padStart(2, '0');
+    return `${year}-${month}-01`;
   });
 
-  const { calculateDailyFlow } = useLoadEngine(projects, employees, absences);
+  const { calculateDailyFlow } = useLoadEngine(deptProjects, deptEmployees, deptAbsences);
 
   useEffect(() => {
     const unsubProjects = onSnapshot(query(collection(db, 'projects')), (snapshot) =>
@@ -81,11 +99,11 @@ const Flow = () => {
   const directionOptions = useMemo(
     () => [
       { value: ALL_DIRECTIONS_VALUE, label: ALL_DIRECTIONS_LABEL },
-      ...[...new Set(projects.map((project) => project.direction).filter(Boolean))]
+      ...[...new Set(deptProjects.map((project) => project.direction).filter(Boolean))]
         .sort()
         .map((direction) => ({ value: direction, label: direction }))
     ],
-    [projects]
+    [deptProjects]
   );
 
   const selectedDirectionLabel =
@@ -98,36 +116,72 @@ const Flow = () => {
   const flowData = useMemo(
     () =>
       rawFlowData.map((day, index) => {
-        if (isAllDirections) {
-          return {
-            ...day,
-            loadWeight: day.buffer + day.overdue,
-            weightedShare: 100,
-            estimatedPerformers: day.performersCount,
-            estimatedCapacity: day.capacity
-          };
-        }
+        const overallDay = overallFlowData[index] || {};
+        const isSelectedDirection = !isAllDirections;
 
-        const overallDay = overallFlowData[index];
-        const ownWeight = day.buffer + day.overdue;
-        const totalWeight = (overallDay?.buffer || 0) + (overallDay?.overdue || 0);
-        const share = totalWeight > 0 ? ownWeight / totalWeight : 0;
+        let estimatedCapacity = day.capacity;
+        let estimatedPerformers = day.performersCount;
+
+        if (isSelectedDirection) {
+          const overallBacklogTotal = (overallDay.buffer || 0) + (overallDay.overdue || 0);
+          const dirBacklogTotal = (day.buffer || 0) + (day.overdue || 0);
+
+          if (overallBacklogTotal > 0 && dirBacklogTotal > 0) {
+            const ratio = Math.min(1, dirBacklogTotal / overallBacklogTotal);
+            estimatedCapacity = (overallDay.capacity || 0) * ratio;
+            estimatedPerformers = (overallDay.performersCount || 0) * ratio;
+          } else if (day.input > 0) {
+            const overallInput = overallDay.input || 1;
+            const ratio = Math.min(1, day.input / overallInput);
+            estimatedCapacity = (overallDay.capacity || 0) * ratio;
+            estimatedPerformers = (overallDay.performersCount || 0) * ratio;
+          } else {
+            estimatedCapacity = 0;
+            estimatedPerformers = 0;
+          }
+        }
 
         return {
           ...day,
-          loadWeight: ownWeight,
-          weightedShare: share * 100,
-          estimatedPerformers: (overallDay?.performersCount || 0) * share,
-          estimatedCapacity: Math.round((overallDay?.capacity || 0) * share)
+          estimatedCapacity,
+          estimatedPerformers
         };
       }),
-    [isAllDirections, overallFlowData, rawFlowData]
+    [rawFlowData, overallFlowData, isAllDirections]
   );
 
   const lastDay = flowData[flowData.length - 1] || {};
 
-  // Each date label marks the left boundary of the day interval.
-  // All data for that day must live tightly inside [date, next date).
+  const currentBacklog = useMemo(() => {
+    const normTarget = String(selectedDirection || '').trim().toLowerCase();
+    const isAll = normTarget === '__all__' || normTarget === 'всі' || !normTarget;
+    
+    return projects
+      .filter(p => {
+        if (p.status === 'completed') return false;
+        if (isAll) return true;
+        const dir = String(p.direction || 'Загальне').trim().toLowerCase();
+        if (normTarget === 'загальне') return !p.direction || dir === 'загальне';
+        return dir === normTarget;
+      })
+      .reduce((sum, p) => sum + (Number(p.points) || 0), 0);
+  }, [projects, selectedDirection]);
+
+  const currentOverdue = useMemo(() => {
+    const normTarget = String(selectedDirection || '').trim().toLowerCase();
+    const isAll = normTarget === '__all__' || normTarget === 'всі' || !normTarget;
+    
+    return projects
+      .filter(p => {
+        if (p.status !== 'overdue') return false;
+        if (isAll) return true;
+        const dir = String(p.direction || 'Загальне').trim().toLowerCase();
+        if (normTarget === 'загальне') return !p.direction || dir === 'загальне';
+        return dir === normTarget;
+      })
+      .reduce((sum, p) => sum + (Number(p.points) || 0), 0);
+  }, [projects, selectedDirection]);
+
   const BUFFER_X_OFFSET = 1.08;
   const INPUT_X_OFFSET = 1.22;
   const COMPLETED_X_OFFSET = 1.36;
@@ -242,19 +296,13 @@ const Flow = () => {
     },
     plugins: {
       legend: {
-        position: 'top',
-        labels: {
-          color: '#cbd5e1',
-          usePointStyle: true,
-          boxWidth: 10,
-          padding: 16
-        }
+        display: false
       },
       tooltip: {
-        backgroundColor: 'rgba(15, 23, 42, 0.95)',
-        titleColor: '#fff',
-        bodyColor: '#cbd5e1',
-        borderColor: 'rgba(255,255,255,0.12)',
+        backgroundColor: '#1e293b',
+        titleColor: '#f8fafc',
+        bodyColor: '#e2e8f0',
+        borderColor: 'rgba(0,0,0,0.1)',
         borderWidth: 1,
         padding: 12,
         cornerRadius: 10,
@@ -300,12 +348,12 @@ const Flow = () => {
         max: flowData.length + 1,
         grid: {
           display: true,
-          color: 'rgba(255,255,255,0.03)',
+          color: 'rgba(0,0,0,0.05)',
           drawTicks: false
         },
         ticks: {
-          color: '#64748b',
-          font: { size: 10 },
+          color: '#4b5563',
+          font: { size: 10, weight: 'bold' },
           autoSkip: false,
           maxRotation: 0,
           minRotation: 0,
@@ -317,155 +365,169 @@ const Flow = () => {
         }
       },
       y: {
-        grid: { color: 'rgba(255, 255, 255, 0.05)' },
-        ticks: { color: '#64748b' }
+        grid: { color: 'rgba(0, 0, 0, 0.05)' },
+        ticks: { color: '#4b5563', font: { weight: 'bold' } }
       }
     }
   };
-
-  const formatDate = (dateStr, field) =>
-    formatDateOnly(normalizeImportedProjectDate(dateStr, { preferPast: field !== 'deadline' }));
 
   return (
     <div className="space-y-8 animate-in fade-in duration-500">
       <header className="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-10">
         <div>
-          <h2 className="text-4xl font-bold tracking-tight bg-gradient-to-r from-white to-white/40 bg-clip-text text-transparent">
+          <h2 className="text-4xl font-bold tracking-tight text-gray-700">
             Потік та пропускна здатність
           </h2>
-          <p className="text-secondary mt-2 text-lg">Аналіз вхідної роботи, випуску та накопиченого буфера</p>
+          <p className="text-gray-500 font-medium mt-2 text-lg">Аналіз вхідної роботи, випуску та накопиченого буфера</p>
         </div>
 
-        <div className="flex flex-wrap items-center gap-6">
+        <div className="neu-pressed flex flex-wrap items-center gap-6 p-4 rounded-2xl">
           <div className="flex items-center gap-3">
-            <span className="text-sm font-semibold tracking-wide text-secondary">Дата з:</span>
-            <input
-              type="date"
+            <span className="text-xs font-bold uppercase tracking-widest text-gray-500">Дата з:</span>
+            <CustomDatePicker
               value={startDate}
               max={endDate}
-              onChange={(event) => setStartDate(event.target.value)}
-              className="bg-white/5 border border-white/10 rounded-lg px-4 py-2 text-sm font-bold focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all cursor-pointer hover:bg-white/10 text-white"
+              onChange={setStartDate}
             />
           </div>
 
           <div className="flex items-center gap-3">
-            <span className="text-sm font-semibold tracking-wide text-secondary">Дата до:</span>
-            <input
-              type="date"
+            <span className="text-xs font-bold uppercase tracking-widest text-gray-500">Дата до:</span>
+            <CustomDatePicker
               value={endDate}
               min={startDate}
-              onChange={(event) => setEndDate(event.target.value)}
-              className="bg-white/5 border border-white/10 rounded-lg px-4 py-2 text-sm font-bold focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all cursor-pointer hover:bg-white/10 text-white"
+              onChange={setEndDate}
             />
           </div>
 
           <div className="flex items-center gap-3">
-            <span className="text-sm font-semibold tracking-wide text-secondary">Напрямок:</span>
-            <select
+            <span className="text-xs font-bold uppercase tracking-widest text-gray-500">Напрямок:</span>
+            <CustomSelect
+              options={directionOptions}
               value={selectedDirection}
-              onChange={(event) => setSelectedDirection(event.target.value)}
-              className="bg-white/5 border border-white/10 rounded-lg px-4 py-2 text-sm font-bold focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all cursor-pointer hover:bg-white/10 text-white"
-            >
-              {directionOptions.map((option) => (
-                <option key={option.value} value={option.value} className="bg-slate-900 border-none">
-                  {option.label}
-                </option>
-              ))}
-            </select>
+              onChange={setSelectedDirection}
+              className="w-40"
+            />
           </div>
         </div>
       </header>
 
       {!isAllDirections && (
-        <div className="glass-card p-4 text-sm text-secondary">
-          Розподіл для напрямку зараз рахується як аналітична оцінка: <span className="text-white font-semibold">буфер + протерміновані</span>.
+        <div className="neu-flat p-4 text-sm text-gray-600 font-medium">
+          Розподіл для напрямку зараз рахується як аналітична оцінка: <span className="text-gray-800 font-bold">буфер + протерміновані</span>.
           Вона не дублює відділ, а ділить загальний ресурс пропорційно частці навантаження напрямку.
         </div>
       )}
 
       <div className="grid grid-cols-1 md:grid-cols-6 gap-4">
-        <div className="glass-card p-4 border-l-4 border-[#0e0efe]">
+        <div className="neu-flat p-4 border-l-4 border-[#0e0efe]">
           <div className="flex items-center gap-3 mb-2">
             <Inbox size={18} className="text-[#0e0efe]" />
-            <span className="text-[10px] uppercase font-bold tracking-widest text-secondary">Вхід (період)</span>
+            <span className="text-[10px] uppercase font-bold tracking-widest text-gray-500">Вхід (період)</span>
           </div>
-          <p className="text-xl font-bold">
-            {flowData.reduce((sum, day) => sum + day.input, 0)} <span className="text-xs font-normal text-secondary">поінтів</span>
+          <p className="text-xl font-extrabold text-gray-800">
+            {flowData.reduce((sum, day) => sum + day.input, 0)} <span className="text-xs font-normal text-gray-500">поінтів</span>
           </p>
         </div>
 
-        <div className="glass-card p-4 border-l-4 border-[#ff0080]">
+        <div className="neu-flat p-4 border-l-4 border-[#ff0080]">
           <div className="flex items-center gap-3 mb-2">
             <CheckCircle size={18} className="text-[#ff0080]" />
-            <span className="text-[10px] uppercase font-bold tracking-widest text-secondary">Закрито (період)</span>
+            <span className="text-[10px] uppercase font-bold tracking-widest text-gray-500">Закрито (період)</span>
           </div>
-          <p className="text-xl font-bold">
-            {flowData.reduce((sum, day) => sum + day.completed, 0)} <span className="text-xs font-normal text-secondary">поінтів</span>
+          <p className="text-xl font-extrabold text-gray-800">
+            {flowData.reduce((sum, day) => sum + day.completed, 0)} <span className="text-xs font-normal text-gray-500">поінтів</span>
           </p>
         </div>
 
-        <div className="glass-card p-4 border-l-4 border-[#4ade80]">
+        <div className="neu-flat p-4 border-l-4 border-[#4ade80]">
           <div className="flex items-center gap-3 mb-2">
             <Database size={18} className="text-[#4ade80]" />
-            <span className="text-[10px] uppercase font-bold tracking-widest text-secondary">Буфер (поточний)</span>
+            <span className="text-[10px] uppercase font-bold tracking-widest text-gray-500">Буфер (поточний)</span>
           </div>
-          <p className="text-xl font-bold">
-            {lastDay.buffer || 0} <span className="text-xs font-normal text-secondary">поінтів</span>
+          <p className="text-xl font-extrabold text-gray-800">
+            {currentBacklog} <span className="text-xs font-normal text-gray-500">поінтів</span>
           </p>
         </div>
 
-        <div className="glass-card p-4 border-l-4 border-[#ff0000]">
+        <div className="neu-flat p-4 border-l-4 border-[#ff0000]">
           <div className="flex items-center gap-3 mb-2">
             <TrendingUp size={18} className="text-[#ff0000]" />
-            <span className="text-[10px] uppercase font-bold tracking-widest text-secondary">Протерміновано</span>
+            <span className="text-[10px] uppercase font-bold tracking-widest text-gray-500">Протерміновано</span>
           </div>
-          <p className="text-xl font-bold">
-            {lastDay.overdue || 0} <span className="text-xs font-normal text-secondary">поінтів</span>
+          <p className="text-xl font-extrabold text-gray-800">
+            {currentOverdue} <span className="text-xs font-normal text-gray-500">поінтів</span>
           </p>
         </div>
 
-        <div className="glass-card p-4 border-l-4 border-purple-400">
+        <div className="neu-flat p-4 border-l-4 border-purple-500">
           <div className="flex items-center gap-3 mb-2">
-            <Users size={18} className="text-purple-400" />
-            <span className="text-[10px] uppercase font-bold tracking-widest text-secondary">
+            <Users size={18} className="text-purple-600" />
+            <span className="text-[10px] uppercase font-bold tracking-widest text-gray-500">
               {isAllDirections ? 'Виконавці' : 'Оцінено виконавців'}
             </span>
           </div>
-          <p className="text-xl font-bold">
+          <p className="text-xl font-extrabold text-gray-800">
             {isAllDirections ? (
               <>
-                {lastDay.performersCount || 0} <span className="text-xs font-normal text-secondary">осіб</span>
+                {lastDay.performersCount || 0} <span className="text-xs font-normal text-gray-500">осіб</span>
               </>
             ) : (
               <>
-                {formatPeople(lastDay.estimatedPerformers || 0)} <span className="text-xs font-normal text-secondary">осіб</span>
+                {formatPeople(lastDay.estimatedPerformers || 0)} <span className="text-xs font-normal text-gray-500">осіб</span>
               </>
             )}
           </p>
         </div>
 
-        <div className="glass-card p-4 border-l-4 border-[#f59e0b]">
+        <div className="neu-flat p-4 border-l-4 border-[#f59e0b]">
           <div className="flex items-center gap-3 mb-2">
             <Zap size={18} className="text-[#f59e0b]" />
-            <span className="text-[10px] uppercase font-bold tracking-widest text-secondary">
+            <span className="text-[10px] uppercase font-bold tracking-widest text-gray-500">
               {isAllDirections ? 'Потужність' : 'Оцінена потужність'}
             </span>
           </div>
-          <p className="text-xl font-bold">
+          <p className="text-xl font-extrabold text-gray-800">
             {isAllDirections ? lastDay.capacity || 0 : lastDay.estimatedCapacity || 0}{' '}
-            <span className="text-xs font-normal text-secondary">поінтів</span>
+            <span className="text-xs font-normal text-gray-500">поінтів</span>
           </p>
         </div>
       </div>
 
-      <div className="glass-card p-8 h-[600px]">
-        <div className="flex justify-between items-center mb-8">
-          <h3 className="text-xl font-bold flex items-center gap-2">
+      <div className="neu-flat p-8">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
+          <h3 className="text-xl font-extrabold flex items-center gap-2 text-gray-800">
             <Activity size={20} className="text-primary" />
             Динаміка пропускної здатності — {selectedDirectionLabel} ({flowData[0]?.date?.toLocaleDateString('uk-UA') || '—'} — {flowData[flowData.length - 1]?.date?.toLocaleDateString('uk-UA') || '—'})
           </h3>
+
+          <div className="flex flex-wrap items-center gap-5 neu-pressed px-4 py-2.5 rounded-xl">
+            <div className="flex items-center gap-2">
+              <span className="w-3 h-3 rounded-full bg-[#ff0000] inline-block shadow-sm" />
+              <span className="text-xs font-extrabold text-gray-800">Протерміновані</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="w-3 h-3 rounded-full bg-[#f59e0b] inline-block shadow-sm" />
+              <span className="text-xs font-extrabold text-gray-800">
+                {isAllDirections ? 'Потужність' : 'Оцінена потужність'}
+              </span>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="w-3 h-3 rounded-full bg-[#4ade80] inline-block shadow-sm" />
+              <span className="text-xs font-extrabold text-gray-800">Буфер (залишок)</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="w-3 h-3 rounded-full bg-[#0e0efe] inline-block shadow-sm" />
+              <span className="text-xs font-extrabold text-gray-800">Вхід (поінти)</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="w-3 h-3 rounded-full bg-[#ff0080] inline-block shadow-sm" />
+              <span className="text-xs font-extrabold text-gray-800">Закрито</span>
+            </div>
+          </div>
         </div>
-        <div className="h-[450px]">
+
+        <div className="h-[460px]">
           <Bar data={chartData} options={chartOptions} />
         </div>
       </div>
