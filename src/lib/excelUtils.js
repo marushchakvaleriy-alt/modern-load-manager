@@ -29,110 +29,135 @@ export const processBitrixExcel = (file) => {
       try {
         const data = new Uint8Array(e.target.result);
         const workbook = XLSX.read(data, { type: 'array', cellDates: true });
-        const sheet = workbook.Sheets[workbook.SheetNames[0]];
-        const jsonData = XLSX.utils.sheet_to_json(sheet, { raw: true, defval: '' });
-        const formattedJsonData = XLSX.utils.sheet_to_json(sheet, { raw: false, defval: '' });
+        const projects = [];
 
-        const robustGet = (row, possibleNames) => {
-          const keys = Object.keys(row);
-          
-          // Homoglyph normalization: Latin to Cyrillic lookalikes
-          const homoglyphs = { 
-            'a': 'а', 'c': 'с', 'e': 'е', 'o': 'о', 'p': 'р', 'x': 'х', 'y': 'у',
-            'A': 'А', 'C': 'С', 'E': 'Е', 'O': 'О', 'P': 'Р', 'X': 'Х', 'Y': 'У'
-          };
-          
-          const normalize = (s) => 
-            String(s || '')
-              .replace(/[\s\u00A0]+/g, ' ')
-              .trim()
-              .split('')
-              .map(char => homoglyphs[char] || char)
-              .join('')
-              .toLowerCase();
-          
-          for (const name of possibleNames) {
-            const target = normalize(name);
-            const match = keys.find(k => {
-              const key = normalize(k);
-              // Match if exact or if one contains the other
-              return key === target || key.includes(target) || target.includes(key);
-            });
-            if (match) return row[match];
-          }
-          return undefined;
-        };
+        for (const sheetName of workbook.SheetNames) {
+          const sheet = workbook.Sheets[sheetName];
+          const jsonData = XLSX.utils.sheet_to_json(sheet, { raw: true, defval: '' });
+          const formattedJsonData = XLSX.utils.sheet_to_json(sheet, { raw: false, defval: '' });
 
-        const projects = jsonData.map((row, index) => {
-          const formattedRow = formattedJsonData[index] || {};
-          // Bitrix columns mapping
-          let points = 1;
-          const explicitPoints = robustGet(row, ['Point', 'Поинты', 'Поінти', 'Поінт', 'Оценка', 'Score']);
-          
-          if (explicitPoints !== undefined && explicitPoints !== '') {
-            points = Number(explicitPoints);
-          } else if (robustGet(row, ['Планируемые трудозатраты', 'Трудозатраты', 'План. час'])) {
-            const timeVal = robustGet(row, ['Планируемые трудозатраты', 'Трудозатраты', 'План. час']);
-            let hours = 0;
+          const robustGet = (row, possibleNames) => {
+            const keys = Object.keys(row);
             
-            if (typeof timeVal === 'number') {
-              // Excel stores time as fraction of a day (e.g. 1:00 is 1/24 = 0.04166)
-              hours = timeVal < 1 ? timeVal * 24 : timeVal;
-            } else {
-              const timeStr = String(timeVal);
-              if (timeStr.includes(':')) {
-                const parts = timeStr.split(':');
-                hours = Number(parts[0] || 0) + (Number(parts[1] || 0) / 60);
-              } else {
-                hours = Number(timeStr) || 0;
-              }
+            // Homoglyph normalization: Latin to Cyrillic lookalikes
+            const homoglyphs = { 
+              'a': 'а', 'c': 'с', 'e': 'е', 'o': 'о', 'p': 'р', 'x': 'х', 'y': 'у',
+              'A': 'А', 'C': 'С', 'E': 'Е', 'O': 'О', 'P': 'Р', 'X': 'Х', 'Y': 'У'
+            };
+            
+            const normalize = (s) => 
+              String(s || '')
+                .replace(/[\s\u00A0]+/g, ' ')
+                .trim()
+                .split('')
+                .map(char => homoglyphs[char] || char)
+                .join('')
+                .toLowerCase();
+            
+            for (const name of possibleNames) {
+              const target = normalize(name);
+              const match = keys.find(k => {
+                const key = normalize(k);
+                // Match if exact or if one contains the other
+                return key === target || key.includes(target) || target.includes(key);
+              });
+              if (match) return row[match];
             }
-            // 42 points / 7 work hours = 6 points per hour
-            points = Math.round(hours * 6);
-          }
-          
-          if (Number.isNaN(points) || points < 0) points = 0;
-
-          // Mapping logic: exhaustive list of variations with homoglyph normalization
-          const creationColNames = ['Дата создания', 'Дата созд', 'Дата створення', 'Created', 'Создано'];
-          const completionColNames = ['Дата завершения', 'Дата завершення', 'Дата заверш', 'Завершено', 'Закрито', 'Дата закриття', 'Completed on'];
-          const deadlineColNames = ['Крайний срок', 'Кrajní termín', 'Deadline', 'Крайній термін'];
-
-          const startDate = parseExcelDate(
-            robustGet(formattedRow, creationColNames) || robustGet(row, creationColNames),
-            { preferPast: true, preferDayFirst: true }
-          ) || null;
-          const completedAt = parseExcelDate(
-            robustGet(formattedRow, completionColNames) || robustGet(row, completionColNames),
-            { preferPast: true, preferDayFirst: true }
-          ) || null;
-          const deadline = parseExcelDate(
-            robustGet(formattedRow, deadlineColNames) || robustGet(row, deadlineColNames),
-            { preferDayFirst: true }
-          ) || null;
-
-          const p = {
-            id: `btx-${Date.now()}-${index}`,
-            name: robustGet(row, ['Название', 'Title', 'Назва', 'Заголовок', 'Задача', 'Наименование']) || 'Без назви',
-            status: completedAt ? 'completed' : mapBitrixStatus(robustGet(row, ['Статус', 'Status', 'Стан'])),
-            assignedEmployee: String(robustGet(row, ['Ответственный', 'Responsible', 'Відповідальний', 'Виконавець', 'Исполнитель']) || 'Не призначено').trim(),
-            points: Number(points),
-            plannedTime: robustGet(row, ['Планируемые трудозатраты']) || '',
-            spentTime: robustGet(row, ['Затраченное время', 'Витрачений час']) || '',
-            direction: robustGet(row, ['Напрямок', 'Направление', 'Direction', 'Сфера', 'Вид діяльності']) || 'Загальне',
-            taskType: robustGet(row, ['Категорія', 'Категория', 'Category', 'Розробка/Правка', 'Правка/Нова', 'Вид робіт', 'Вид', 'Тип', 'Type']) || '',
-            itemsInfo: robustGet(row, ['виріб+кількість', 'виріб + кількість', 'виріб/кількість', 'Виріб', 'Изделие', 'Product', 'items+qty', 'виріб кількість']) || '',
-            startDate,
-            deadline,
-            completedAt,
-            type: 'bitrix',
-            importedAt: new Date().toISOString()
+            return undefined;
           };
 
-          p.sourceKey = getImportedProjectKey(p);
+          jsonData.forEach((row, index) => {
+            const formattedRow = formattedJsonData[index] || {};
+            const rowStr = JSON.stringify(row).toLowerCase();
+            
+            // Skip summary rows
+            if (rowStr.includes('итого') || rowStr.includes('всего') || rowStr.includes('разом') || rowStr.includes('всього')) {
+              return;
+            }
 
-          return p;
-        });
+            const rawName = String(robustGet(row, ['Название', 'Title', 'Назва', 'Заголовок', 'Задача', 'Наименование']) || '').trim();
+            
+            // Skip rows where the name is purely a time/number format (likely a shifted summary row)
+            if (/^(\d+[:.]\d{2})$/.test(rawName)) {
+              return;
+            }
+
+            // Bitrix columns mapping
+            let points = 1;
+            const explicitPoints = robustGet(row, ['Point', 'Поинты', 'Поінти', 'Поінт', 'Оценка', 'Score']);
+            
+            if (explicitPoints !== undefined && explicitPoints !== '') {
+              points = Number(explicitPoints);
+            } else if (robustGet(row, ['Планируемые трудозатраты', 'Трудозатраты', 'План. час'])) {
+              const timeVal = robustGet(row, ['Планируемые трудозатраты', 'Трудозатраты', 'План. час']);
+              let hours = 0;
+              
+              if (typeof timeVal === 'number') {
+                // Excel stores time as fraction of a day (e.g. 1:00 is 1/24 = 0.04166)
+                hours = timeVal < 1 ? timeVal * 24 : timeVal;
+              } else {
+                const timeStr = String(timeVal);
+                if (timeStr.includes(':')) {
+                  const parts = timeStr.split(':');
+                  hours = Number(parts[0] || 0) + (Number(parts[1] || 0) / 60);
+                } else {
+                  hours = Number(timeStr) || 0;
+                }
+              }
+              // 42 points / 7 work hours = 6 points per hour
+              points = Math.round(hours * 6);
+            }
+            
+            if (Number.isNaN(points) || points < 0) points = 0;
+
+            // Mapping logic: exhaustive list of variations with homoglyph normalization
+            const creationColNames = ['Дата создания', 'Дата созд', 'Дата створення', 'Created', 'Создано'];
+            const completionColNames = ['Дата завершения', 'Дата завершення', 'Дата заверш', 'Завершено', 'Закрито', 'Дата закриття', 'Completed on'];
+            const deadlineColNames = ['Крайний срок', 'Кrajní termín', 'Deadline', 'Крайній термін'];
+
+            const startDate = parseExcelDate(
+              robustGet(formattedRow, creationColNames) || robustGet(row, creationColNames),
+              { preferPast: true, preferDayFirst: true }
+            ) || null;
+            const completedAt = parseExcelDate(
+              robustGet(formattedRow, completionColNames) || robustGet(row, completionColNames),
+              { preferPast: true, preferDayFirst: true }
+            ) || null;
+            const deadline = parseExcelDate(
+              robustGet(formattedRow, deadlineColNames) || robustGet(row, deadlineColNames),
+              { preferDayFirst: true }
+            ) || null;
+
+            const p = {
+              id: `btx-${Date.now()}-${projects.length}-${index}`,
+              name: robustGet(row, ['Название', 'Title', 'Назва', 'Заголовок', 'Задача', 'Наименование']) || 'Без назви',
+              status: completedAt ? 'completed' : mapBitrixStatus(robustGet(row, ['Статус', 'Status', 'Стан'])),
+              assignedEmployee: String(robustGet(row, ['Ответственный', 'Responsible', 'Відповідальний', 'Виконавець', 'Исполнитель']) || 'Не призначено').trim(),
+              points: Number(points),
+              plannedTime: robustGet(row, ['Планируемые трудозатраты']) || '',
+              spentTime: robustGet(row, ['Затраченное время', 'Витрачений час']) || '',
+              direction: robustGet(row, ['Напрямок', 'Направление', 'Direction', 'Сфера', 'Вид діяльності']) || 'Загальне',
+              taskType: robustGet(row, ['Категорія', 'Категория', 'Category', 'Розробка/Правка', 'Правка/Нова', 'Вид робіт', 'Вид', 'Тип', 'Type']) || '',
+              itemsInfo: robustGet(row, ['виріб+кількість', 'виріб + кількість', 'виріб/кількість', 'Виріб', 'Изделие', 'Product', 'items+qty', 'виріб кількість']) || '',
+              startDate,
+              deadline,
+              completedAt,
+              type: 'bitrix',
+              importedAt: new Date().toISOString()
+            };
+
+            p.sourceKey = getImportedProjectKey(p);
+            
+            // Set department based on sheet name if not available
+            if (sheetName.toLowerCase().includes('конструювання') || sheetName.toLowerCase().includes('construction')) {
+               p.department = 'construction';
+            } else if (sheetName.toLowerCase().includes('проєкт') || sheetName.toLowerCase().includes('design')) {
+               p.department = 'design';
+            }
+
+            projects.push(p);
+          });
+        }
 
         resolve(projects);
       } catch (err) {

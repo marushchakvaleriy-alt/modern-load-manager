@@ -65,8 +65,10 @@ export const triggerGlobalSync = async () => {
       if (!existingEmp || existingEmp.id !== customId || existingEmp.department !== dept) {
         empBatch.set(ref, { 
           name: originalName, 
-          role: roleName,
+          role: existingEmp?.role || roleName,
           department: dept,
+          isSenior: !!existingEmp?.isSenior,
+          isIgnored: !!existingEmp?.isIgnored,
           updatedAt: serverTimestamp() 
         }, { merge: true });
         changed = true;
@@ -75,7 +77,12 @@ export const triggerGlobalSync = async () => {
     });
 
     // 2. Remove stale employees no longer present in any projects for their department
+    // (Only remove if not manually created and not explicitly configured)
     employees.forEach(emp => {
+      if (emp.isManual || emp.isIgnored) {
+        return; // Preserve manually added or ignored employees
+      }
+
       const empNameLower = (emp.name || '').trim().toLowerCase();
       const empDept = emp.department || 'design';
       const comboKey = `${empNameLower}_${empDept}`;

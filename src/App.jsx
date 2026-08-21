@@ -5,6 +5,7 @@ import Projects from './tabs/Projects';
 import Audit from './tabs/Audit';
 import Load from './tabs/Load';
 import Team from './tabs/Team';
+import Gantt from './tabs/Gantt';
 import DirectionAudit from './tabs/DirectionAudit';
 import ItemsAudit from './tabs/ItemsAudit';
 import Flow from './tabs/Flow';
@@ -320,6 +321,7 @@ const AppContent = () => {
       <main className="flex-1 overflow-y-auto p-8">
         {activeTab === 'dashboard' && <Dashboard setActiveTab={setActiveTab} setProjectFilter={setProjectFilter} />}
         {activeTab === 'projects' && <Projects projectFilter={projectFilter} setProjectFilter={setProjectFilter} />}
+        {activeTab === 'gantt' && <Gantt />}
         {activeTab === 'audit' && <Audit />}
         {activeTab === 'direction-audit' && <DirectionAudit />}
         {activeTab === 'items-audit' && <ItemsAudit />}

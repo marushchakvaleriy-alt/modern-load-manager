@@ -44,17 +44,22 @@ export const useLoadEngine = (projects, employees, absences = []) => {
   );
 
   // Count how many employees are present (not absent) on a given date
-  // EXCLUDE Senior Designers from capacity because they only distribute tasks, not execute them
+  // EXCLUDE Senior Designers and Ignored employees from capacity
   const presentEmployeeCount = useCallback((dateStr) => {
     if (!employees.length) return 1; 
-    return employees.filter(emp => !emp.isSenior && !isEmployeeAbsent(emp.id, dateStr)).length;
+    return employees.filter(emp => !emp.isSenior && !emp.isIgnored && !isEmployeeAbsent(emp.id, dateStr)).length;
   }, [employees, isEmployeeAbsent]);
 
   // Burndown chart: starts at total active points, decreases by available capacity each working day
   const departmentLoad = useMemo(() => {
     if (!projects.length) return [];
 
+    const ignoredNames = new Set(
+      employees.filter(e => e.isIgnored).map(e => (e.name || '').trim().toLowerCase())
+    );
+
     const totalBacklogPoints = projects
+      .filter(p => !ignoredNames.has((p.assignedEmployee || '').trim().toLowerCase()))
       .filter(p => p.status === 'active' || p.status === 'waiting' || p.status === 'overdue')
       .reduce((sum, p) => sum + (p.points || 0), 0);
 
@@ -86,40 +91,47 @@ export const useLoadEngine = (projects, employees, absences = []) => {
     }
 
     return loadByDay;
-  }, [projects, presentEmployeeCount]);
+  }, [projects, employees, presentEmployeeCount]);
 
   // Per-employee load breakdown for the Load tab
   const employeeLoad = useMemo(() => {
     const nameSet = new Set(projects.map(p => (p.assignedEmployee || '').trim()).filter(Boolean));
-    return [...nameSet].map(name => {
-      const empData = employees.find(e => (e.name || '').trim().toLowerCase() === name.toLowerCase());
+    const ignoredNames = new Set(
+      employees.filter(e => e.isIgnored).map(e => (e.name || '').trim().toLowerCase())
+    );
 
-      const activeProjects = projects.filter(
-        p => (p.status === 'active' || p.status === 'waiting') && (p.assignedEmployee || '').trim() === name
-      );
-      const completedProjects = projects.filter(
-        p => p.status === 'completed' && (p.assignedEmployee || '').trim() === name
-      );
-      const overdueProjects = projects.filter(
-        p => p.status === 'overdue' && (p.assignedEmployee || '').trim() === name
-      );
+    return [...nameSet]
+      .filter(name => !ignoredNames.has(name.toLowerCase()))
+      .map(name => {
+        const empData = employees.find(e => (e.name || '').trim().toLowerCase() === name.toLowerCase());
 
-      const active = activeProjects.reduce((s, p) => s + (p.points || 0), 0);
-      const completed = completedProjects.reduce((s, p) => s + (p.points || 0), 0);
-      const overdue = overdueProjects.reduce((s, p) => s + (p.points || 0), 0);
-        
-      return { 
-        name, 
-        active, 
-        completed, 
-        overdue, 
-        total: active + completed + overdue,
-        isSenior: !!empData?.isSenior,
-        activeCount: activeProjects.length,
-        completedCount: completedProjects.length,
-        overdueCount: overdueProjects.length
-      };
-    }).sort((a, b) => b.active - a.active);
+        const activeProjects = projects.filter(
+          p => (p.status === 'active' || p.status === 'waiting') && (p.assignedEmployee || '').trim() === name
+        );
+        const completedProjects = projects.filter(
+          p => p.status === 'completed' && (p.assignedEmployee || '').trim() === name
+        );
+        const overdueProjects = projects.filter(
+          p => p.status === 'overdue' && (p.assignedEmployee || '').trim() === name
+        );
+
+        const active = activeProjects.reduce((s, p) => s + (p.points || 0), 0);
+        const completed = completedProjects.reduce((s, p) => s + (p.points || 0), 0);
+        const overdue = overdueProjects.reduce((s, p) => s + (p.points || 0), 0);
+          
+        return { 
+          name, 
+          active, 
+          completed, 
+          overdue, 
+          total: active + completed + overdue,
+          isSenior: !!empData?.isSenior,
+          isIgnored: !!empData?.isIgnored,
+          activeCount: activeProjects.length,
+          completedCount: completedProjects.length,
+          overdueCount: overdueProjects.length
+        };
+      }).sort((a, b) => b.active - a.active);
   }, [projects, employees]);
 
   // Shared helper: detect if a project is a revision (works for old & new data)

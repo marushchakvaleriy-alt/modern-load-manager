@@ -1,8 +1,8 @@
-import React from 'react';
 import {
   Activity,
   BarChart2,
   Box,
+  CalendarRange,
   ClipboardList,
   Compass,
   Layers,
@@ -25,6 +25,7 @@ const Sidebar = ({ activeTab, setActiveTab }) => {
   const navItems = [
     { id: 'dashboard', label: 'Панель керування', icon: LayoutDashboard },
     { id: 'projects', label: 'Проєкти', icon: ClipboardList },
+    { id: 'gantt', label: 'Гант', icon: CalendarRange },
     { id: 'load', label: 'Навантаження', icon: BarChart2 },
     { id: 'audit', label: auditTabLabel, icon: PieChart },
     { id: 'direction-audit', label: 'Аудит напрямків', icon: Layers },

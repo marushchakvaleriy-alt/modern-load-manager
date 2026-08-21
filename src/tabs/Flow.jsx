@@ -156,7 +156,7 @@ const Flow = () => {
     const normTarget = String(selectedDirection || '').trim().toLowerCase();
     const isAll = normTarget === '__all__' || normTarget === 'всі' || !normTarget;
     
-    return projects
+    return deptProjects
       .filter(p => {
         if (p.status === 'completed') return false;
         if (isAll) return true;
@@ -171,7 +171,7 @@ const Flow = () => {
     const normTarget = String(selectedDirection || '').trim().toLowerCase();
     const isAll = normTarget === '__all__' || normTarget === 'всі' || !normTarget;
     
-    return projects
+    return deptProjects
       .filter(p => {
         if (p.status !== 'overdue') return false;
         if (isAll) return true;
