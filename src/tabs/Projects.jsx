@@ -18,6 +18,7 @@ const Projects = ({ projectFilter, setProjectFilter }) => {
   const [showClosed, setShowClosed] = useState(false);
 
   // Column filter state
+  const [filterId, setFilterId] = useState('');
   const [filterName, setFilterName] = useState('');
   const [filterEmployee, setFilterEmployee] = useState('');
   const [filterStatus, setFilterStatus] = useState('');
@@ -278,13 +279,14 @@ const Projects = ({ projectFilter, setProjectFilter }) => {
   };
 
   const clearColumnFilters = () => {
+    setFilterId('');
     setFilterName('');
     setFilterEmployee('');
     setFilterStatus('');
     setFilterDirection('');
   };
 
-  const hasActiveColumnFilters = Boolean(filterName || filterEmployee || filterStatus || filterDirection);
+  const hasActiveColumnFilters = Boolean(filterId || filterName || filterEmployee || filterStatus || filterDirection);
 
   const filteredProjects = displayProjects.filter((project) => {
     // 1. Tab filter
@@ -308,6 +310,11 @@ const Projects = ({ projectFilter, setProjectFilter }) => {
     }
 
     // 2. Column filters
+    if (filterId) {
+      const pId = String(project.bitrixId || project.externalId || '').toLowerCase();
+      if (!pId.includes(filterId.toLowerCase())) return false;
+    }
+
     if (filterName && !project.name?.toLowerCase().includes(filterName.toLowerCase())) {
       return false;
     }
@@ -466,6 +473,17 @@ const Projects = ({ projectFilter, setProjectFilter }) => {
           <thead>
             <tr className="border-b border-gray-300/60">
               <th
+                onClick={() => handleSort('bitrixId')}
+                className="table-header cursor-pointer select-none hover:text-white transition-colors w-24"
+              >
+                <div className="flex items-center gap-1.5">
+                  <span>ID</span>
+                  {sortField === 'bitrixId' && (
+                    sortOrder === 'asc' ? <ArrowUp size={14} className="text-primary" /> : <ArrowDown size={14} className="text-primary" />
+                  )}
+                </div>
+              </th>
+              <th
                 onClick={() => handleSort('name')}
                 className="table-header cursor-pointer select-none hover:text-white transition-colors"
               >
@@ -547,6 +565,15 @@ const Projects = ({ projectFilter, setProjectFilter }) => {
 
             {/* Column Filter Controls Row */}
             <tr className="border-b border-gray-300/40">
+              <th className="px-3 py-2 font-normal w-24">
+                <input
+                  type="text"
+                  placeholder="ID..."
+                  value={filterId}
+                  onChange={(e) => setFilterId(e.target.value)}
+                  className="w-full neu-pressed rounded-xl px-2 py-1.5 text-xs text-gray-700 font-mono font-semibold outline-none focus:ring-2 focus:ring-primary/30 transition-all placeholder:text-gray-400"
+                />
+              </th>
               <th className="px-4 py-2 font-normal">
                 <div className="relative">
                   <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-500" />
@@ -636,22 +663,20 @@ const Projects = ({ projectFilter, setProjectFilter }) => {
           <tbody className="divide-y divide-gray-300/40">
             {sortedProjects.map((project) => (
               <tr key={project.id} className="hover:bg-gray-300/20 transition-colors group">
-                <td className="px-6 py-5 leading-relaxed">
-                  <div className="flex items-center gap-2">
-                    {(() => {
-                      const rawId = String(project.bitrixId || project.externalId || '').trim();
-                      const isRealId = rawId && !rawId.startsWith('btx-auto') && !rawId.startsWith('btx-txt') && !rawId.includes('178');
-                      if (!isRealId) return null;
-                      const cleanId = rawId.replace(/^btx-/, '');
-                      return (
-                        <span className="text-[10px] font-mono font-black text-primary bg-primary/10 px-2 py-0.5 rounded-lg border border-primary/20 shrink-0" title="Унікальний номер ID в Бітрікс">
-                          #{cleanId}
-                        </span>
-                      );
-                    })()}
-                    <span className="font-bold text-gray-800 text-sm">{project.name}</span>
-                  </div>
+                <td className="px-3 py-5 font-mono text-xs w-24">
+                  {(() => {
+                    const rawId = String(project.bitrixId || project.externalId || '').trim();
+                    const isRealId = rawId && !rawId.startsWith('btx-auto') && !rawId.startsWith('btx-txt') && !rawId.includes('178');
+                    if (!isRealId) return <span className="text-gray-400 font-medium">—</span>;
+                    const cleanId = rawId.replace(/^btx-/, '');
+                    return (
+                      <span className="font-mono font-black text-primary bg-primary/10 px-2 py-1 rounded-lg border border-primary/20 whitespace-nowrap">
+                        #{cleanId}
+                      </span>
+                    );
+                  })()}
                 </td>
+                <td className="px-6 py-5 font-bold text-gray-800 text-sm leading-relaxed">{project.name}</td>
                 <td className="px-6 py-5">
                   <div className="flex items-center gap-3 text-gray-700 font-medium text-sm">
                     <div className="w-7 h-7 rounded-full neu-pressed flex items-center justify-center text-xs font-bold text-primary">
