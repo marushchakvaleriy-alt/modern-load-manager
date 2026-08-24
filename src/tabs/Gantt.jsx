@@ -824,11 +824,12 @@ const Gantt = () => {
                               </div>
                             )}
                           </div>
-                        );
-                      })}
-                    </div>
+                        </div>
+                      );
+                    })}
                   </div>
-                ))}
+                </div>
+              ))}
 
                 {/* Total Department Daily Workload Summary Footer */}
                 <div className="flex items-center neu-flat p-2.5 rounded-xl border border-primary/30 bg-primary/5 mt-4">
