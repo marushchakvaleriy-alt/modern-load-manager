@@ -602,12 +602,12 @@ const Gantt = () => {
         </div>
       </div>
 
-      {/* Main Viewport Container */}
-      <div className="neu-flat rounded-2xl p-5 border border-white/60">
-        <div className="overflow-x-auto">
+      {/* Main Viewport Container with Sticky Header */}
+      <div className="neu-flat rounded-2xl border border-white/60 overflow-hidden shadow-sm">
+        <div className="overflow-x-auto overflow-y-auto max-h-[calc(100vh-200px)] p-5 relative">
           <div className="min-w-[1200px]">
             {/* Table & Timeline Header (Sticky) */}
-            <div className="sticky top-0 z-30 bg-[#e0e5ec] py-2 mb-4 border-b-2 border-gray-300/90 shadow-sm flex items-center rounded-xl px-1">
+            <div className="sticky top-0 z-40 bg-[#e0e5ec] py-2.5 mb-4 border-b-2 border-gray-300 shadow-md flex items-center rounded-xl px-2">
               {/* Left Column Headers */}
               <div className="w-[26rem] shrink-0 grid grid-cols-12 gap-2 pr-3 pl-2 items-center text-[11px] font-extrabold uppercase tracking-wider text-gray-500">
                 {/* Performer Header */}
