@@ -398,13 +398,13 @@ const Gantt = () => {
       return <span className="text-[10px] text-gray-300 font-mono">-</span>;
     }
 
-    // Color thresholds for daily workload
+    // Color thresholds for daily workload (based on 42 points/day standard capacity)
     let style = 'bg-emerald-500/15 text-emerald-700 border-emerald-500/30';
     let icon = null;
 
-    if (pts > 8 && pts <= 14) {
+    if (pts > 42 && pts <= 65) {
       style = 'bg-amber-500/20 text-amber-800 border-amber-500/40 font-black';
-    } else if (pts > 14) {
+    } else if (pts > 65) {
       style = 'bg-red-500/25 text-red-800 border-red-500/50 font-black shadow-sm';
       icon = <AlertTriangle size={8} className="inline text-red-600 mr-0.5" />;
     }
@@ -959,17 +959,17 @@ const Gantt = () => {
       {/* Legend & Capacity Thresholds */}
       <div className="flex flex-wrap items-center justify-between gap-4 px-2 pt-1 text-xs font-bold text-gray-500">
         <div className="flex flex-wrap items-center gap-4">
-          <span className="text-gray-400 font-extrabold uppercase text-[10px]">Шкала щоденного навантаження:</span>
+          <span className="text-gray-400 font-extrabold uppercase text-[10px]">Шкала навантаження (норма = 42п/день):</span>
           <div className="flex items-center gap-1.5">
-            <span className="px-1.5 py-0.5 rounded text-[9px] font-mono border bg-emerald-500/15 text-emerald-700 border-emerald-500/30">1-8п</span>
-            <span>Норма</span>
+            <span className="px-1.5 py-0.5 rounded text-[9px] font-mono border bg-emerald-500/15 text-emerald-700 border-emerald-500/30">До 42п</span>
+            <span>Норма (1 роб. день)</span>
           </div>
           <div className="flex items-center gap-1.5">
-            <span className="px-1.5 py-0.5 rounded text-[9px] font-mono border bg-amber-500/20 text-amber-800 border-amber-500/40">9-14п</span>
+            <span className="px-1.5 py-0.5 rounded text-[9px] font-mono border bg-amber-500/20 text-amber-800 border-amber-500/40">43-65п</span>
             <span>Високе</span>
           </div>
           <div className="flex items-center gap-1.5">
-            <span className="px-1.5 py-0.5 rounded text-[9px] font-mono border bg-red-500/25 text-red-800 border-red-500/50">15+п ⚠️</span>
+            <span className="px-1.5 py-0.5 rounded text-[9px] font-mono border bg-red-500/25 text-red-800 border-red-500/50">65+п ⚠️</span>
             <span>Перевантаження</span>
           </div>
         </div>
