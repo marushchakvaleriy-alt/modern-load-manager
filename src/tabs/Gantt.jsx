@@ -516,20 +516,6 @@ const Gantt = () => {
             <Zap size={14} className={viewMode === 'workload' ? 'text-amber-500' : ''} />
             <span>Поінти по днях</span>
           </button>
-
-          <button
-            type="button"
-            onClick={() => setViewMode('both')}
-            className={`px-3.5 py-1.5 rounded-lg text-xs font-extrabold flex items-center gap-1.5 transition-all ${
-              viewMode === 'both'
-                ? 'neu-btn text-primary bg-white shadow-sm'
-                : 'text-gray-500 hover:text-gray-800'
-            }`}
-            title="Комбінований режим: Смужки Ганта + Щоденні поінти"
-          >
-            <Activity size={14} className={viewMode === 'both' ? 'text-emerald-500' : ''} />
-            <span>Комбінований</span>
-          </button>
         </div>
 
         {/* Search */}
@@ -821,24 +807,6 @@ const Gantt = () => {
 
                                   return <div key={idx} className="h-full flex items-center justify-center text-[9px] text-gray-300 font-mono">-</div>;
                                 })}
-                              </div>
-                            )}
-
-                            {/* Mode 3: HYBRID COMBINED (3D Gantt Bar with Points inside each day) */}
-                            {viewMode === 'both' && isVisibleInView && (
-                              <div
-                                className={`absolute h-6 rounded-lg ${perfColor.bar} text-white font-black text-[10px] px-2 flex items-center justify-between transition-all z-20 overflow-hidden`}
-                                style={{
-                                  left: `${clampedLeft}%`,
-                                  width: `${widthPercent}%`,
-                                  minWidth: '32px'
-                                }}
-                                title={`Задача: ${project.name}\nПоінти: ${totalPoints} (${pointsPerDay}п/день)`}
-                              >
-                                <span className="truncate pr-1 drop-shadow-sm">{project.name}</span>
-                                <span className="text-[9px] font-mono bg-black/30 px-1.5 py-0.5 rounded font-black whitespace-nowrap">
-                                  {pointsPerDay}п/день ({totalPoints}п)
-                                </span>
                               </div>
                             )}
                           </div>
