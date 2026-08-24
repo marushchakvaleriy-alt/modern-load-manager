@@ -658,22 +658,35 @@ const Gantt = () => {
                 )}
 
                 {groupedData.map((group, gIdx) => (
-                  <div key={gIdx} className="space-y-2">
+                  <div
+                    key={gIdx}
+                    className={`transition-all ${
+                      groupByEmployee && group.name
+                        ? 'neu-flat p-3 rounded-2xl mb-4 border border-white/60 bg-[#e0e5ec]/60 space-y-2'
+                        : 'space-y-2'
+                    }`}
+                  >
                     {/* Performer Group Header with Daily Heatmap Summary */}
-                    {group.groupName && (
-                      <div className="flex items-center neu-flat p-2 rounded-xl border border-white/60 shadow-sm bg-white/40">
+                    {groupByEmployee && group.name && (
+                      <div className="flex items-center p-2 rounded-xl bg-white/70 border border-gray-300/60 shadow-sm">
                         <div className="w-[24rem] shrink-0 flex items-center justify-between pr-4 pl-1">
-                          <div className="flex items-center gap-2">
-                            <div className={`w-3.5 h-3.5 rounded-full ${group.color.dot}`} />
-                            <span className="font-extrabold text-xs text-gray-800">{group.name}</span>
-                            <span className="text-[10px] text-gray-500 font-medium">({group.items.length} задач)</span>
+                          <div className="flex items-center gap-2.5">
+                            <div className={`w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-black text-white shadow-sm ${group.color.dot}`}>
+                              {group.name.split(' ').map(n => n[0]).join('').slice(0, 2)}
+                            </div>
+                            <div>
+                              <span className="font-extrabold text-xs text-gray-800">{group.name}</span>
+                              <span className="text-[10px] text-gray-500 font-medium ml-1.5">
+                                ({group.items.length} {group.items.length === 1 ? 'задача' : group.items.length < 5 ? 'задачі' : 'задач'})
+                              </span>
+                            </div>
                           </div>
-                          <span className="font-black text-[11px] text-primary bg-primary/10 px-2 py-0.5 rounded-lg border border-primary/20">
-                            {group.totalPoints} поінтів
+                          <span className="font-black text-[11px] text-primary bg-primary/10 px-2.5 py-0.5 rounded-lg border border-primary/20">
+                            Всього: {group.totalPoints}п
                           </span>
                         </div>
 
-                        {/* Daily Points Heatmap for Performer */}
+                        {/* Daily Points Heatmap for Performer in Group Header */}
                         <div className="flex-1 grid h-7 items-center" style={{ gridTemplateColumns: `repeat(${timelineDays.length}, minmax(0, 1fr))` }}>
                           {timelineDays.map((date, idx) => {
                             const isWeekend = date.getDay() === 0 || date.getDay() === 6;
@@ -684,8 +697,8 @@ const Gantt = () => {
                             return (
                               <div
                                 key={idx}
-                                className={`h-full flex items-center justify-center border-l border-gray-300/30 ${
-                                  isToday ? 'bg-primary/5' : isWeekend ? 'bg-gray-300/20' : ''
+                                className={`h-full flex items-center justify-center border-l border-gray-300/40 ${
+                                  isToday ? 'bg-primary/10' : isWeekend ? 'bg-gray-300/30' : ''
                                 }`}
                                 title={`${group.name} на ${date.toLocaleDateString('uk-UA')}: ${dayPts} поінтів`}
                               >
@@ -698,55 +711,56 @@ const Gantt = () => {
                     )}
 
                     {/* Task Rows inside Group */}
-                    {group.items.map((project) => {
-                      const empName = project.assignedEmployee || 'Не призначено';
-                      const perfColor = performerColorMap[empName] || PERFORMER_COLORS[0];
-                      const workload = getTaskWorkload(project);
-                      const { tf, totalPoints, pointsPerDay, dailyMap } = workload;
+                    <div className="space-y-2">
+                      {group.items.map((project) => {
+                        const empName = project.assignedEmployee || 'Не призначено';
+                        const perfColor = performerColorMap[empName] || PERFORMER_COLORS[0];
+                        const workload = getTaskWorkload(project);
+                        const { tf, totalPoints, pointsPerDay, dailyMap } = workload;
 
-                      let leftPercent = getPositionForDate(tf.startDate);
-                      let rightPercent = getPositionForDate(tf.endDate);
+                        let leftPercent = getPositionForDate(tf.startDate);
+                        let rightPercent = getPositionForDate(tf.endDate);
 
-                      if (leftPercent === null) leftPercent = 0;
-                      if (rightPercent === null) rightPercent = 100;
+                        if (leftPercent === null) leftPercent = 0;
+                        if (rightPercent === null) rightPercent = 100;
 
-                      const clampedLeft = Math.max(0, Math.min(100, leftPercent));
-                      const clampedRight = Math.max(clampedLeft + 1.5, Math.min(100, rightPercent));
-                      const widthPercent = clampedRight - clampedLeft;
+                        const clampedLeft = Math.max(0, Math.min(100, leftPercent));
+                        const clampedRight = Math.max(clampedLeft + 1.5, Math.min(100, rightPercent));
+                        const widthPercent = clampedRight - clampedLeft;
 
-                      const isVisibleInView = rightPercent >= 0 && leftPercent <= 100;
+                        const isVisibleInView = rightPercent >= 0 && leftPercent <= 100;
 
-                      return (
-                        <div
-                          key={project.id}
-                          className="flex items-center neu-flat p-2 rounded-2xl hover:brightness-[1.02] hover:-translate-y-0.5 transition-all group cursor-pointer border border-white/40"
-                          onClick={() => setSelectedTaskDetails(project)}
-                        >
-                          {/* Table columns on the left */}
-                          <div className="w-[24rem] shrink-0 grid grid-cols-12 gap-2 pr-3 pl-1 items-center">
-                            {/* Employee */}
-                            <div className="col-span-5 flex items-center gap-2 min-w-0 pr-1">
-                              <span className={`w-2.5 h-2.5 rounded-full ${perfColor.dot} shrink-0`} />
-                              <span className="font-bold text-xs text-gray-700 truncate" title={empName}>
-                                {empName}
-                              </span>
-                            </div>
-
-                            {/* Project Name & Points Subtitle */}
-                            <div className="col-span-7 min-w-0 pr-1">
-                              <div className="flex items-center justify-between gap-1">
-                                <p className="font-bold text-xs text-gray-800 truncate" title={project.name}>
-                                  {project.name}
-                                </p>
-                                <span className="text-[10px] font-black text-gray-700 bg-gray-200/80 px-1.5 py-0.2 rounded shrink-0">
-                                  {totalPoints}п
+                        return (
+                          <div
+                            key={project.id}
+                            className="flex items-center neu-flat p-2 rounded-2xl hover:brightness-[1.02] hover:-translate-y-0.5 transition-all group cursor-pointer border border-white/40 bg-white/30"
+                            onClick={() => setSelectedTaskDetails(project)}
+                          >
+                            {/* Table columns on the left */}
+                            <div className="w-[24rem] shrink-0 grid grid-cols-12 gap-2 pr-3 pl-1 items-center">
+                              {/* Employee (or category badge if grouped) */}
+                              <div className="col-span-4 flex items-center gap-2 min-w-0 pr-1">
+                                <span className={`w-2.5 h-2.5 rounded-full ${perfColor.dot} shrink-0`} />
+                                <span className="font-bold text-xs text-gray-700 truncate" title={empName}>
+                                  {empName}
                                 </span>
                               </div>
-                              <p className="text-[10px] text-gray-400 font-mono">
-                                {formatDateShort(tf.startDate)} ➔ {formatDateShort(tf.endDate)} ({tf.durationDays}д · {pointsPerDay}п/д)
-                              </p>
+
+                              {/* Project Name & Points Subtitle */}
+                              <div className="col-span-8 min-w-0 pr-1">
+                                <div className="flex items-center justify-between gap-1">
+                                  <p className="font-bold text-xs text-gray-800 truncate" title={project.name}>
+                                    {project.name}
+                                  </p>
+                                  <span className="text-[10px] font-black text-gray-700 bg-gray-200/80 px-1.5 py-0.2 rounded shrink-0">
+                                    {totalPoints}п
+                                  </span>
+                                </div>
+                                <p className="text-[10px] text-gray-400 font-mono">
+                                  {formatDateShort(tf.startDate)} ➔ {formatDateShort(tf.endDate)} ({tf.durationDays}д · {pointsPerDay}п/д)
+                                </p>
+                              </div>
                             </div>
-                          </div>
 
                           {/* Timeline / Workload Matrix Viewport */}
                           <div className="flex-1 h-8 bg-[#d8dfe8]/70 rounded-xl relative overflow-hidden flex items-center shadow-inner">
