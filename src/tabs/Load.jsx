@@ -52,8 +52,8 @@ const Load = () => {
     labels: employeeLoad.map((employee) => employee.name),
     datasets: [
       {
-        label: 'В роботі (поінти)',
-        data: employeeLoad.map((employee) => employee.active),
+        label: 'В роботі / Черга (поінти)',
+        data: employeeLoad.map((employee) => employee.pending ?? (employee.active + employee.overdue)),
         backgroundColor: 'rgba(59, 130, 246, 0.7)',
         borderColor: '#3b82f6',
         borderWidth: 1,
@@ -217,7 +217,7 @@ const Load = () => {
               <div className="grid grid-cols-3 gap-2 text-center">
                 <div className="neu-pressed p-2 rounded-xl">
                   <p className="text-lg font-extrabold text-blue-600">
-                    {employee.activeCount} <span className="text-xs font-semibold text-blue-500">({employee.active})</span>
+                    {totalPendingCount} <span className="text-xs font-semibold text-blue-500">({totalPending})</span>
                   </p>
                   <p className="text-[10px] text-gray-500 font-bold uppercase tracking-wider">В роботі</p>
                 </div>
