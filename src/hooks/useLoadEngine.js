@@ -274,10 +274,19 @@ export const useLoadEngine = (projects, employees, absences = []) => {
 
       let itemsCount = 0;
       let newTasks = 0;
+      let newTasksPoints = 0;
       let revisions = 0;
+      let revisionsPoints = 0;
 
       dirCompleted.forEach(p => {
-        if (isRevision(p)) revisions++; else newTasks++;
+        const pts = Number(p.points) || 0;
+        if (isRevision(p)) {
+          revisions++;
+          revisionsPoints += pts;
+        } else {
+          newTasks++;
+          newTasksPoints += pts;
+        }
 
         const itemsStr = String(p.itemsInfo || '');
         if (itemsStr) {
@@ -292,7 +301,9 @@ export const useLoadEngine = (projects, employees, absences = []) => {
         activePoints,
         itemsCount,
         newTasks,
+        newTasksPoints,
         revisions,
+        revisionsPoints,
         totalTasks: dirCompleted.length
       };
     }).sort((a, b) => b.completedPoints - a.completedPoints);

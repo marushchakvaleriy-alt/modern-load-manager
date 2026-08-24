@@ -171,19 +171,28 @@ const saveGlobalImportedProjects = async (imported, targetDepartment = 'design')
       docId: projectDoc.id
     }));
 
-    const existingBitrixByKey = new Map();
+    const existingById = new Map();
+    const existingByNameEmp = new Map();
     const duplicateExistingIds = [];
 
     existingProjects.forEach((project) => {
-      const sourceKey = getImportedProjectKey(project);
-      if (!sourceKey) return;
       const dept = project.department || 'design';
-      const scopedKey = `${sourceKey}_${dept}`;
+      const btxId = String(project.bitrixId || project.externalId || '').trim();
+      const normName = String(project.name || '').trim().toLowerCase();
+      const normEmp = String(project.assignedEmployee || '').trim().toLowerCase();
+      const nameEmpKey = `${normName}___${normEmp}_${dept}`;
 
-      if (!existingBitrixByKey.has(scopedKey)) {
-        existingBitrixByKey.set(scopedKey, project);
-      } else {
-        duplicateExistingIds.push(project.docId);
+      if (btxId) {
+        const idKey = `btx_${btxId}_${dept}`;
+        if (!existingById.has(idKey)) {
+          existingById.set(idKey, project);
+        } else {
+          duplicateExistingIds.push(project.docId);
+        }
+      }
+
+      if (normName && !existingByNameEmp.has(nameEmpKey)) {
+        existingByNameEmp.set(nameEmpKey, project);
       }
     });
 
@@ -199,8 +208,20 @@ const saveGlobalImportedProjects = async (imported, targetDepartment = 'design')
     let updatedCount = 0;
 
     importedByKey.forEach((project, sourceKey) => {
-      const scopedKey = `${sourceKey}_${targetDepartment}`;
-      const existingProject = existingBitrixByKey.get(scopedKey);
+      const btxId = String(project.bitrixId || project.externalId || '').trim();
+      const normName = String(project.name || '').trim().toLowerCase();
+      const normEmp = String(project.assignedEmployee || '').trim().toLowerCase();
+      const idKey = btxId ? `btx_${btxId}_${targetDepartment}` : null;
+      const nameEmpKey = `${normName}___${normEmp}_${targetDepartment}`;
+
+      // 1. Try finding by unique Bitrix ID
+      let existingProject = idKey ? existingById.get(idKey) : null;
+
+      // 2. Fallback to Name + Employee for migrating legacy records
+      if (!existingProject && nameEmpKey) {
+        existingProject = existingByNameEmp.get(nameEmpKey);
+      }
+
       const { id: importedBitrixId, ...projectData } = project;
 
       if (existingProject) {
@@ -208,7 +229,9 @@ const saveGlobalImportedProjects = async (imported, targetDepartment = 'design')
           doc(db, 'projects', existingProject.docId),
           {
             ...projectData,
-            externalId: importedBitrixId,
+            bitrixId: btxId || existingProject.bitrixId || '',
+            externalId: btxId || existingProject.externalId || importedBitrixId,
+            sourceKey,
             id: deleteField(),
             department: targetDepartment,
             createdAt: existingProject.createdAt || serverTimestamp(),
@@ -222,7 +245,8 @@ const saveGlobalImportedProjects = async (imported, targetDepartment = 'design')
         const newDocRef = doc(collection(db, 'projects'));
         batch.set(newDocRef, {
           ...projectData,
-          externalId: importedBitrixId,
+          bitrixId: btxId || '',
+          externalId: btxId || importedBitrixId,
           sourceKey,
           department: targetDepartment,
           createdAt: serverTimestamp(),

@@ -10,6 +10,11 @@ const normalizeKeyPart = (value) =>
     .replace(/["'`]/g, '');
 
 export const getImportedProjectKey = (project) => {
+  const btxId = String(project?.bitrixId || project?.externalId || '').trim();
+  if (btxId) {
+    return `btx_${btxId}`;
+  }
+
   const normalizedName = normalizeKeyPart(project?.name);
   if (!normalizedName) return '';
 
@@ -128,8 +133,12 @@ export const processBitrixExcel = (file) => {
               { preferDayFirst: true }
             ) || null;
 
+            const rawId = String(robustGet(row, ['ID', 'Id', 'Айді', 'ID задачи', 'Номер', '№', 'Код', 'Идентификатор', 'Task ID', 'Task_id']) || '').trim();
+
             const p = {
-              id: `btx-${Date.now()}-${projects.length}-${index}`,
+              id: rawId ? `btx-${rawId}` : `btx-${Date.now()}-${projects.length}-${index}`,
+              bitrixId: rawId,
+              externalId: rawId,
               name: robustGet(row, ['Название', 'Title', 'Назва', 'Заголовок', 'Задача', 'Наименование']) || 'Без назви',
               status: completedAt ? 'completed' : mapBitrixStatus(robustGet(row, ['Статус', 'Status', 'Стан'])),
               assignedEmployee: String(robustGet(row, ['Ответственный', 'Responsible', 'Відповідальний', 'Виконавець', 'Исполнитель']) || 'Не призначено').trim(),
