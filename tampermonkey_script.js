@@ -168,6 +168,7 @@
             });
         }
 
+        var idIdx = getColIndex(['id', 'айді', 'номер', '№', 'код', 'идентификатор', 'task id']);
         var nameIdx = getColIndex(['название', 'назва', 'задача']);
         var statusIdx = getColIndex(['статус', 'стан']);
         var createdIdx = getColIndex(['дата создания', 'дата створення']);
@@ -181,7 +182,7 @@
         var dirIdx = getColIndex(['напрямок', 'направление']);
         var itemsIdx = getColIndex(['виріб+кількість', 'виріб + кількість', 'виріб/кількість', 'виріб', 'изделие', 'product', 'вирібкількість']);
 
-        if (nameIdx === -1) nameIdx = 0;
+        if (nameIdx === -1) nameIdx = idIdx === 0 ? 1 : 0;
         if (statusIdx === -1) statusIdx = 1;
         if (createdIdx === -1) createdIdx = 2;
         if (deadlineIdx === -1) deadlineIdx = 3;
@@ -206,7 +207,16 @@
         return rows.map(function (tr, idx) {
             var tds = Array.from(tr.querySelectorAll('td')).map(function (td) { return td.innerText.trim(); });
 
-            var name = (tds[nameIdx] || tds[0] || '').trim();
+            var rawId = idIdx !== -1 ? (tds[idIdx] || '').trim() : '';
+            if (!rawId) {
+                var taskLink = tr.querySelector('a[href*="/tasks/task/view/"]');
+                if (taskLink) {
+                    var matchId = taskLink.href.match(/view\/(\d+)/);
+                    if (matchId) rawId = matchId[1];
+                }
+            }
+
+            var name = (tds[nameIdx] || (idIdx === 0 ? tds[1] : tds[0]) || '').trim();
             if (!name || name === '—' || name === '-' || /^[\s—-]+$/.test(name)) {
                 name = tds.find(function (t) { return t && t.length > 2 && t !== '—' && t !== '-' && !/^[\s—-]+$/.test(t); }) || '';
             }
@@ -228,7 +238,9 @@
             var finalStatus = mapBitrixStatus(statusStr, completedDate);
 
             return {
-                id: 'btx-auto-' + Date.now() + '-' + idx,
+                id: rawId ? 'btx-' + rawId : 'btx-auto-' + Date.now() + '-' + idx,
+                bitrixId: rawId,
+                externalId: rawId,
                 name: name,
                 status: finalStatus,
                 assignedEmployee: responsible,
