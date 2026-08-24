@@ -971,14 +971,20 @@ const Gantt = () => {
 
               {/* Additional Meta */}
               <div className="neu-flat p-3.5 rounded-xl text-xs space-y-1.5 text-gray-600 font-medium">
-                {(selectedTaskDetails.bitrixId || selectedTaskDetails.externalId) && (
-                  <div className="flex justify-between">
-                    <span>Унікальний ID (Бітрікс):</span>
-                    <span className="font-mono font-black text-primary bg-primary/10 px-2 py-0.5 rounded border border-primary/20">
-                      #{selectedTaskDetails.bitrixId || selectedTaskDetails.externalId}
-                    </span>
-                  </div>
-                )}
+                {(() => {
+                  const rawId = String(selectedTaskDetails.bitrixId || selectedTaskDetails.externalId || '').trim();
+                  const isRealId = rawId && !rawId.startsWith('btx-auto') && !rawId.startsWith('btx-txt') && !rawId.includes('178');
+                  if (!isRealId) return null;
+                  const cleanId = rawId.replace(/^btx-/, '');
+                  return (
+                    <div className="flex justify-between">
+                      <span>Унікальний ID (Бітрікс):</span>
+                      <span className="font-mono font-black text-primary bg-primary/10 px-2 py-0.5 rounded border border-primary/20">
+                        #{cleanId}
+                      </span>
+                    </div>
+                  );
+                })()}
                 <div className="flex justify-between">
                   <span>Виконавець:</span>
                   <span className="font-bold text-gray-800">{selectedTaskDetails.assignedEmployee || 'Не призначено'}</span>

@@ -638,11 +638,17 @@ const Projects = ({ projectFilter, setProjectFilter }) => {
               <tr key={project.id} className="hover:bg-gray-300/20 transition-colors group">
                 <td className="px-6 py-5 leading-relaxed">
                   <div className="flex items-center gap-2">
-                    {(project.bitrixId || project.externalId) && (
-                      <span className="text-[10px] font-mono font-black text-primary bg-primary/10 px-2 py-0.5 rounded-lg border border-primary/20 shrink-0" title="Унікальний номер ID в Бітрікс">
-                        #{project.bitrixId || project.externalId}
-                      </span>
-                    )}
+                    {(() => {
+                      const rawId = String(project.bitrixId || project.externalId || '').trim();
+                      const isRealId = rawId && !rawId.startsWith('btx-auto') && !rawId.startsWith('btx-txt') && !rawId.includes('178');
+                      if (!isRealId) return null;
+                      const cleanId = rawId.replace(/^btx-/, '');
+                      return (
+                        <span className="text-[10px] font-mono font-black text-primary bg-primary/10 px-2 py-0.5 rounded-lg border border-primary/20 shrink-0" title="Унікальний номер ID в Бітрікс">
+                          #{cleanId}
+                        </span>
+                      );
+                    })()}
                     <span className="font-bold text-gray-800 text-sm">{project.name}</span>
                   </div>
                 </td>
