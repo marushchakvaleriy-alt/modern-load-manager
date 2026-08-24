@@ -636,7 +636,16 @@ const Projects = ({ projectFilter, setProjectFilter }) => {
           <tbody className="divide-y divide-gray-300/40">
             {sortedProjects.map((project) => (
               <tr key={project.id} className="hover:bg-gray-300/20 transition-colors group">
-                <td className="px-6 py-5 font-bold text-gray-800 text-sm leading-relaxed">{project.name}</td>
+                <td className="px-6 py-5 leading-relaxed">
+                  <div className="flex items-center gap-2">
+                    {(project.bitrixId || project.externalId) && (
+                      <span className="text-[10px] font-mono font-black text-primary bg-primary/10 px-2 py-0.5 rounded-lg border border-primary/20 shrink-0" title="Унікальний номер ID в Бітрікс">
+                        #{project.bitrixId || project.externalId}
+                      </span>
+                    )}
+                    <span className="font-bold text-gray-800 text-sm">{project.name}</span>
+                  </div>
+                </td>
                 <td className="px-6 py-5">
                   <div className="flex items-center gap-3 text-gray-700 font-medium text-sm">
                     <div className="w-7 h-7 rounded-full neu-pressed flex items-center justify-center text-xs font-bold text-primary">
