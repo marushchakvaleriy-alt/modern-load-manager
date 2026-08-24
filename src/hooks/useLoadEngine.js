@@ -117,6 +117,7 @@ export const useLoadEngine = (projects, employees, absences = []) => {
 
         const active = activeProjects.reduce((s, p) => s + (p.points || 0), 0);
         const completed = completedProjects.reduce((s, p) => s + (p.points || 0), 0);
+        const overdue = overdueProjects.reduce((s, p) => s + (p.points || 0), 0);
         const pending = active + overdue;
         const pendingCount = activeProjects.length + overdueProjects.length;
           
