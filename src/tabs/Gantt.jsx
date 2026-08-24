@@ -278,13 +278,27 @@ const Gantt = () => {
     });
 
     const groupsList = Object.entries(rawGroups).map(([empName, taskList]) => {
-      // Sort tasks in employee's queue:
-      // In progress (active) first, then waiting, then by creation / start date
+      // Sort tasks in employee's queue by Earliest Deadline First (EDF)
       taskList.sort((a, b) => {
-        const orderStatus = { active: 1, overdue: 2, waiting: 3 };
+        const deadlineA = parseDateSafe(a.deadline);
+        const deadlineB = parseDateSafe(b.deadline);
+
+        // 1. Prioritize tasks with earlier deadline
+        if (deadlineA && deadlineB) {
+          const diff = deadlineA.getTime() - deadlineB.getTime();
+          if (diff !== 0) return diff;
+        } else if (deadlineA && !deadlineB) {
+          return -1;
+        } else if (!deadlineA && deadlineB) {
+          return 1;
+        }
+
+        // 2. Secondary sort: Status priority (active/overdue before waiting)
+        const orderStatus = { active: 1, overdue: 1, waiting: 2 };
         const statusDiff = (orderStatus[a.status] || 9) - (orderStatus[b.status] || 9);
         if (statusDiff !== 0) return statusDiff;
 
+        // 3. Tertiary sort: by start/creation date
         const dateA = parseDateSafe(a.startDate || a.createdAt || a.createdDate) || today;
         const dateB = parseDateSafe(b.startDate || b.createdAt || b.createdDate) || today;
         return dateA.getTime() - dateB.getTime();
