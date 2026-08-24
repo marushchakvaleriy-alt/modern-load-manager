@@ -102,8 +102,9 @@ const Load = () => {
           afterLabel: (ctx) => {
             const employee = employeeLoad[ctx.dataIndex];
             if (employee?.isSenior) return 'В очікуванні розподілу';
-            const days = employee ? Math.round((employee.active / CAPACITY_PER_DAY) * 10) / 10 : 0;
-            return `Завантажена на: ${days} дн.`;
+            const totalPending = employee?.pending ?? (employee.active + employee.overdue);
+            const days = employee ? Math.round((totalPending / CAPACITY_PER_DAY) * 10) / 10 : 0;
+            return `Завантажена на: ${days} дн. (${totalPending}п у черзі)`;
           }
         }
       }
@@ -150,7 +151,9 @@ const Load = () => {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-8">
         {employeeLoad.map((employee, index) => {
           const WORKING_DAYS = 22;
-          const daysLoaded = Math.round((employee.active / CAPACITY_PER_DAY) * 10) / 10;
+          const totalPending = employee?.pending ?? (employee.active + employee.overdue);
+          const totalPendingCount = employee?.pendingCount ?? (employee.activeCount + employee.overdueCount);
+          const daysLoaded = Math.round((totalPending / CAPACITY_PER_DAY) * 10) / 10;
           const barWidth = Math.min(100, (daysLoaded / WORKING_DAYS) * 100);
           const isOverloaded = daysLoaded > WORKING_DAYS * 0.9;
           const isUnderloaded = daysLoaded < WORKING_DAYS * 0.4;
@@ -171,7 +174,7 @@ const Load = () => {
                     )}
                   </div>
                   <p className="text-xs text-gray-500 font-medium">
-                    {employee.activeCount} задач у роботі ({employee.active} поінтів)
+                    {totalPendingCount} активних задач ({totalPending} поінтів)
                   </p>
                 </div>
                 {employee.isSenior ? (
@@ -188,7 +191,7 @@ const Load = () => {
                 <div className="flex justify-between text-xs text-gray-500 font-semibold mb-1">
                   <span>{employee.isSenior ? 'В очікуванні розподілу' : 'Завантажена на'}</span>
                   <span className={isOverloaded && !employee.isSenior ? 'text-red-500 font-extrabold' : 'text-gray-800 font-extrabold'}>
-                    {employee.isSenior ? `${employee.active} поінтів` : `${daysLoaded} дн.`}
+                    {employee.isSenior ? `${totalPending} поінтів` : `${daysLoaded} дн.`}
                   </span>
                 </div>
                 {!employee.isSenior && (
@@ -201,7 +204,7 @@ const Load = () => {
                         style={{ width: `${barWidth}%` }}
                       />
                     </div>
-                    <p className="text-[10px] text-gray-400 font-bold mt-1 text-right">норма: 22 дн./міс.</p>
+                    <p className="text-[10px] text-gray-400 font-bold mt-1 text-right">норма: 22 дн./міс. (при 42п/день)</p>
                   </>
                 )}
                 {employee.isSenior && (

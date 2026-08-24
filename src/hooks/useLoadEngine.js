@@ -117,21 +117,24 @@ export const useLoadEngine = (projects, employees, absences = []) => {
 
         const active = activeProjects.reduce((s, p) => s + (p.points || 0), 0);
         const completed = completedProjects.reduce((s, p) => s + (p.points || 0), 0);
-        const overdue = overdueProjects.reduce((s, p) => s + (p.points || 0), 0);
+        const pending = active + overdue;
+        const pendingCount = activeProjects.length + overdueProjects.length;
           
         return { 
           name, 
           active, 
           completed, 
           overdue, 
+          pending,
           total: active + completed + overdue,
           isSenior: !!empData?.isSenior,
           isIgnored: !!empData?.isIgnored,
           activeCount: activeProjects.length,
           completedCount: completedProjects.length,
-          overdueCount: overdueProjects.length
+          overdueCount: overdueProjects.length,
+          pendingCount
         };
-      }).sort((a, b) => b.active - a.active);
+      }).sort((a, b) => (b.active + b.overdue) - (a.active + a.overdue));
   }, [projects, employees]);
 
   // Shared helper: detect if a project is a revision (works for old & new data)
