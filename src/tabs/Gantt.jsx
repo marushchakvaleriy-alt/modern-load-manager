@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { collection, onSnapshot } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { useDepartment } from '../store/departmentContext';
@@ -151,10 +151,29 @@ const Gantt = () => {
 
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedStatus, setSelectedStatus] = useState('all');
-  const [selectedPerformer, setSelectedPerformer] = useState('all');
-  const [zoomLevel, setZoomLevel] = useState('day'); // 'day', 'week', 'month'
+  const [zoomLevel, setZoomLevel] = useState('3w'); // '3w', '6w', '2m', '3m', 'all'
   const [viewOffsetWeeks, setViewOffsetWeeks] = useState(0);
   const [selectedTaskDetails, setSelectedTaskDetails] = useState(null);
+
+  // Scroll Container Ref and State for Smooth Bottom Slider
+  const scrollContainerRef = useRef(null);
+  const [scrollLeft, setScrollLeft] = useState(0);
+  const [maxScrollLeft, setMaxScrollLeft] = useState(1);
+
+  const handleScroll = () => {
+    if (scrollContainerRef.current) {
+      setScrollLeft(scrollContainerRef.current.scrollLeft);
+      setMaxScrollLeft(Math.max(1, scrollContainerRef.current.scrollWidth - scrollContainerRef.current.clientWidth));
+    }
+  };
+
+  useEffect(() => {
+    // Recalculate max scroll on zoom change or data change
+    const timer = setTimeout(() => {
+      handleScroll();
+    }, 100);
+    return () => clearTimeout(timer);
+  }, [zoomLevel, timelineDays]);
 
   // View Mode: 'gantt' (Timeline bars) or 'workload' (Daily points matrix)
   const [viewMode, setViewMode] = useState('gantt');
@@ -255,21 +274,21 @@ const Gantt = () => {
     return maxD;
   }, [deptProjects, today]);
 
-  // Timeline view calculations
+  // Timeline view calculations: Always load 60-120 days so horizontal scrolling is available
   const timelineDays = useMemo(() => {
     const days = [];
-    let numDays = 28;
-    if (zoomLevel === '3w' || zoomLevel === 'day') numDays = 21;
-    else if (zoomLevel === '6w' || zoomLevel === 'week') numDays = 42;
+    let numDays = 60; // 2 months by default
+    if (zoomLevel === '3w' || zoomLevel === 'day') numDays = 60; // 60 days total, scaled so 3 weeks fit viewport
+    else if (zoomLevel === '6w' || zoomLevel === 'week') numDays = 75;
     else if (zoomLevel === '2m' || zoomLevel === 'month') numDays = 60;
     else if (zoomLevel === '3m') numDays = 90;
     else if (zoomLevel === 'all') {
       const diffDays = Math.ceil((maxForecastEndDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
-      numDays = Math.max(35, Math.min(180, diffDays + 14));
+      numDays = Math.max(60, Math.min(180, diffDays + 14));
     }
 
     const start = new Date(today);
-    start.setDate(today.getDate() - 4 + viewOffsetWeeks * 7);
+    start.setDate(today.getDate() - 3 + viewOffsetWeeks * 7);
 
     for (let i = 0; i < numDays; i++) {
       const d = new Date(start);
@@ -468,7 +487,17 @@ const Gantt = () => {
     );
   };
 
-  const dayColWidth = zoomLevel === 'all' || zoomLevel === '3m' ? 36 : zoomLevel === '2m' ? 38 : 42;
+  const dayColWidth =
+    zoomLevel === '3w' || zoomLevel === 'day'
+      ? 54
+      : zoomLevel === '6w' || zoomLevel === 'week'
+      ? 36
+      : zoomLevel === '2m' || zoomLevel === 'month'
+      ? 24
+      : zoomLevel === '3m'
+      ? 18
+      : 14;
+
   const totalGridWidth = timelineDays.length * dayColWidth;
   const todayIndex = timelineDays.findIndex((d) => formatDateISO(d) === formatDateISO(today));
 
@@ -517,13 +546,17 @@ const Gantt = () => {
             </button>
           </div>
 
-          {/* Time Horizon Presets */}
+          {/* Time Horizon & Zoom Scale Presets */}
           <div className="neu-flat p-1.5 rounded-2xl flex items-center gap-1 shadow-sm bg-[#e0e5ec]">
+            <span className="text-[11px] font-extrabold uppercase text-gray-500 pl-2 pr-1 hidden sm:inline">
+              Масштаб:
+            </span>
             <button
               onClick={() => setZoomLevel('3w')}
               className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
                 zoomLevel === '3w' || zoomLevel === 'day' ? 'neu-btn text-primary font-black bg-white shadow-xs' : 'text-gray-500 hover:text-gray-800'
               }`}
+              title="Детальний вигляд (3 тижні на екран, гортання повзунком на 2 місяці)"
             >
               3 тижні
             </button>
@@ -532,6 +565,7 @@ const Gantt = () => {
               className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
                 zoomLevel === '6w' || zoomLevel === 'week' ? 'neu-btn text-primary font-black bg-white shadow-xs' : 'text-gray-500 hover:text-gray-800'
               }`}
+              title="Огляд на 6 тижнів"
             >
               6 тижнів
             </button>
@@ -540,6 +574,7 @@ const Gantt = () => {
               className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
                 zoomLevel === '2m' || zoomLevel === 'month' ? 'neu-btn text-primary font-black bg-white shadow-xs' : 'text-gray-500 hover:text-gray-800'
               }`}
+              title="Огляд на 2 місяці"
             >
               2 місяці
             </button>
@@ -548,6 +583,7 @@ const Gantt = () => {
               className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
                 zoomLevel === '3m' ? 'neu-btn text-primary font-black bg-white shadow-xs' : 'text-gray-500 hover:text-gray-800'
               }`}
+              title="Огляд на 3 місяці"
             >
               3 місяці
             </button>
@@ -659,7 +695,11 @@ const Gantt = () => {
 
       {/* Main Viewport Container with Sticky Header & Smooth Horizontal Scroll */}
       <div className="neu-flat rounded-2xl border border-white/60 overflow-hidden shadow-sm">
-        <div className="overflow-x-auto overflow-y-auto max-h-[calc(100vh-200px)] p-4 relative custom-scrollbar">
+        <div
+          ref={scrollContainerRef}
+          onScroll={handleScroll}
+          className="overflow-x-auto overflow-y-auto max-h-[calc(100vh-250px)] p-4 relative custom-scrollbar"
+        >
           <div className="w-full" style={{ minWidth: `calc(26rem + ${totalGridWidth}px)` }}>
             {/* Table & Timeline Header (Sticky Top) */}
             <div className="sticky top-0 z-40 bg-[#e0e5ec] py-2.5 mb-4 border-b-2 border-gray-300 shadow-md flex items-center rounded-xl px-2">
@@ -980,6 +1020,64 @@ const Gantt = () => {
               </div>
             )}
           </div>
+        </div>
+
+        {/* Interactive Bottom Time Slider / Navigation Bar */}
+        <div className="p-3 bg-[#d8dfe8]/90 backdrop-blur-md rounded-b-2xl border-t border-gray-300 flex items-center justify-between gap-4 shadow-inner">
+          <div className="flex items-center gap-2 text-xs font-black text-gray-700 whitespace-nowrap pl-2">
+            <SlidersHorizontal size={16} className="text-primary" />
+            <span>Повзунок часу:</span>
+          </div>
+
+          <div className="flex-1 flex items-center gap-3">
+            <button
+              type="button"
+              onClick={() => {
+                if (scrollContainerRef.current) scrollContainerRef.current.scrollLeft -= 250;
+              }}
+              className="p-1.5 text-gray-600 hover:text-primary rounded-lg transition-all"
+              title="Гортати вліво (-2 тижні)"
+            >
+              <ChevronLeft size={18} />
+            </button>
+            <input
+              type="range"
+              min={0}
+              max={Math.max(1, maxScrollLeft)}
+              value={scrollLeft}
+              onChange={(e) => {
+                const val = Number(e.target.value);
+                setScrollLeft(val);
+                if (scrollContainerRef.current) {
+                  scrollContainerRef.current.scrollLeft = val;
+                }
+              }}
+              className="flex-1 h-3 bg-gray-300 rounded-lg appearance-none cursor-pointer accent-blue-600 shadow-inner"
+              title="Перетягуйте повзунок для гортання графіка вбік"
+            />
+            <button
+              type="button"
+              onClick={() => {
+                if (scrollContainerRef.current) scrollContainerRef.current.scrollLeft += 250;
+              }}
+              className="p-1.5 text-gray-600 hover:text-primary rounded-lg transition-all"
+              title="Гортати вправо (+2 тижні)"
+            >
+              <ChevronRight size={18} />
+            </button>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => {
+              if (scrollContainerRef.current) {
+                scrollContainerRef.current.scrollTo({ left: 0, behavior: 'smooth' });
+              }
+            }}
+            className="px-3.5 py-1.5 text-xs font-black text-primary bg-white hover:bg-primary/10 rounded-xl border border-primary/30 transition-all shrink-0 shadow-xs"
+          >
+            До сьогодні
+          </button>
         </div>
       </div>
 
