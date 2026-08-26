@@ -486,56 +486,39 @@ const Gantt = () => {
           </p>
         </div>
 
-        {/* Zoom & Range Slider Navigation */}
+        {/* Zoom & Period Navigation */}
         <div className="flex flex-wrap items-center gap-3">
-          {/* Range Slider for Week Offset */}
-          <div className="flex items-center gap-2 neu-flat px-3.5 py-1.5 rounded-2xl shadow-sm bg-[#e0e5ec]">
-            <span className="text-[11px] font-extrabold uppercase text-gray-500 whitespace-nowrap flex items-center gap-1.5">
-              <SlidersHorizontal size={13} className="text-primary" />
-              Повзунок часу:
-            </span>
+          {/* Previous / Today / Next */}
+          <div className="flex items-center gap-1.5 neu-flat p-1.5 rounded-2xl shadow-sm bg-[#e0e5ec]">
             <button
               type="button"
-              onClick={() => setViewOffsetWeeks((w) => Math.max(-4, w - 1))}
-              className="p-1 text-gray-600 hover:text-primary rounded-lg transition-all"
-              title="Попередній тиждень"
+              onClick={() => setViewOffsetWeeks((w) => w - 1)}
+              className="p-1.5 text-gray-600 hover:text-primary rounded-lg transition-all"
+              title="Попередній період"
             >
-              <ChevronLeft size={14} />
+              <ChevronLeft size={16} />
             </button>
-            <input
-              type="range"
-              min={-4}
-              max={24}
-              step={1}
-              value={viewOffsetWeeks}
-              onChange={(e) => setViewOffsetWeeks(Number(e.target.value))}
-              className="w-24 sm:w-36 h-2 bg-gray-300 rounded-lg appearance-none cursor-pointer accent-blue-600"
-              title="Перетягніть повзунок для гортання графіка вбік"
-            />
             <button
               type="button"
-              onClick={() => setViewOffsetWeeks((w) => Math.min(24, w + 1))}
-              className="p-1 text-gray-600 hover:text-primary rounded-lg transition-all"
-              title="Наступний тиждень"
+              onClick={() => setViewOffsetWeeks(0)}
+              className={`px-3 py-1 text-xs font-bold rounded-lg transition-all ${
+                viewOffsetWeeks === 0 ? 'text-primary font-black bg-white/70 shadow-xs' : 'text-gray-700 hover:text-primary'
+              }`}
             >
-              <ChevronRight size={14} />
+              Сьогодні {viewOffsetWeeks !== 0 && `(${viewOffsetWeeks > 0 ? `+${viewOffsetWeeks}т` : `${viewOffsetWeeks}т`})`}
             </button>
-            <span className="text-xs font-mono font-black text-primary min-w-[55px] text-center">
-              {viewOffsetWeeks === 0 ? 'Сьогодні' : viewOffsetWeeks > 0 ? `+${viewOffsetWeeks} тиж.` : `${viewOffsetWeeks} тиж.`}
-            </span>
-            {viewOffsetWeeks !== 0 && (
-              <button
-                type="button"
-                onClick={() => setViewOffsetWeeks(0)}
-                className="px-2 py-0.5 text-[10px] font-bold text-gray-700 hover:text-primary bg-white/70 rounded-md shadow-xs transition-all"
-              >
-                Скинути
-              </button>
-            )}
+            <button
+              type="button"
+              onClick={() => setViewOffsetWeeks((w) => w + 1)}
+              className="p-1.5 text-gray-600 hover:text-primary rounded-lg transition-all"
+              title="Наступний період"
+            >
+              <ChevronRight size={16} />
+            </button>
           </div>
 
           {/* Time Horizon Presets */}
-          <div className="neu-flat p-1.5 rounded-2xl flex items-center gap-1 shadow-sm">
+          <div className="neu-flat p-1.5 rounded-2xl flex items-center gap-1 shadow-sm bg-[#e0e5ec]">
             <button
               onClick={() => setZoomLevel('3w')}
               className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
