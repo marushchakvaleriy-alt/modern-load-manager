@@ -460,10 +460,6 @@ const Gantt = () => {
       icon = <AlertTriangle size={8} className="inline text-red-600 mr-0.5" />;
     }
 
-    const dayColWidth = zoomLevel === 'all' || zoomLevel === '3m' ? 36 : zoomLevel === '2m' ? 38 : 42;
-    const totalGridWidth = timelineDays.length * dayColWidth;
-    const todayIndex = timelineDays.findIndex((d) => formatDateISO(d) === formatDateISO(today));
-
     return (
       <span className={`inline-flex items-center justify-center px-1 py-0.5 rounded text-[10px] font-mono border ${style}`}>
         {icon}
@@ -471,6 +467,10 @@ const Gantt = () => {
       </span>
     );
   };
+
+  const dayColWidth = zoomLevel === 'all' || zoomLevel === '3m' ? 36 : zoomLevel === '2m' ? 38 : 42;
+  const totalGridWidth = timelineDays.length * dayColWidth;
+  const todayIndex = timelineDays.findIndex((d) => formatDateISO(d) === formatDateISO(today));
 
   return (
     <div className="space-y-6">
