@@ -151,6 +151,7 @@ const Gantt = () => {
 
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedStatus, setSelectedStatus] = useState('all');
+  const [selectedPerformer, setSelectedPerformer] = useState('all');
   const [zoomLevel, setZoomLevel] = useState('3w'); // '3w', '6w', '2m', '3m', 'all'
   const [viewOffsetWeeks, setViewOffsetWeeks] = useState(0);
   const [selectedTaskDetails, setSelectedTaskDetails] = useState(null);
@@ -166,14 +167,6 @@ const Gantt = () => {
       setMaxScrollLeft(Math.max(1, scrollContainerRef.current.scrollWidth - scrollContainerRef.current.clientWidth));
     }
   };
-
-  useEffect(() => {
-    // Recalculate max scroll on zoom change or data change
-    const timer = setTimeout(() => {
-      handleScroll();
-    }, 100);
-    return () => clearTimeout(timer);
-  }, [zoomLevel, timelineDays]);
 
   // View Mode: 'gantt' (Timeline bars) or 'workload' (Daily points matrix)
   const [viewMode, setViewMode] = useState('gantt');
@@ -297,6 +290,14 @@ const Gantt = () => {
     }
     return days;
   }, [zoomLevel, viewOffsetWeeks, today, maxForecastEndDate]);
+
+  useEffect(() => {
+    // Recalculate max scroll on zoom change or data change
+    const timer = setTimeout(() => {
+      handleScroll();
+    }, 100);
+    return () => clearTimeout(timer);
+  }, [zoomLevel, timelineDays]);
 
   const startDate = timelineDays[0];
   const endDate = timelineDays[timelineDays.length - 1];
