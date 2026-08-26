@@ -660,7 +660,7 @@ const Gantt = () => {
       {/* Main Viewport Container with Sticky Header & Smooth Horizontal Scroll */}
       <div className="neu-flat rounded-2xl border border-white/60 overflow-hidden shadow-sm">
         <div className="overflow-x-auto overflow-y-auto max-h-[calc(100vh-200px)] p-4 relative custom-scrollbar">
-          <div style={{ width: `calc(26rem + ${totalGridWidth}px)`, minWidth: `calc(26rem + ${totalGridWidth}px)` }}>
+          <div className="w-full" style={{ minWidth: `calc(26rem + ${totalGridWidth}px)` }}>
             {/* Table & Timeline Header (Sticky Top) */}
             <div className="sticky top-0 z-40 bg-[#e0e5ec] py-2.5 mb-4 border-b-2 border-gray-300 shadow-md flex items-center rounded-xl px-2">
               {/* Left Column Headers (Sticky Left) */}
@@ -690,11 +690,10 @@ const Gantt = () => {
 
               {/* Timeline Days Header Grid */}
               <div
-                className="shrink-0 grid"
+                className="flex-1 grid"
                 style={{
-                  width: `${totalGridWidth}px`,
                   minWidth: `${totalGridWidth}px`,
-                  gridTemplateColumns: `repeat(${timelineDays.length}, ${dayColWidth}px)`
+                  gridTemplateColumns: `repeat(${timelineDays.length}, minmax(${dayColWidth}px, 1fr))`
                 }}
               >
                 {timelineDays.map((date, idx) => {
@@ -733,7 +732,7 @@ const Gantt = () => {
                 {todayIndex !== -1 && (
                   <div
                     className="absolute top-0 bottom-0 w-0.5 bg-red-500 z-10 pointer-events-none"
-                    style={{ left: `calc(26rem + ${todayIndex * dayColWidth + dayColWidth / 2}px)` }}
+                    style={{ left: `calc(26rem + (100% - 26rem) * ${(todayIndex + 0.5) / timelineDays.length})` }}
                   >
                     <span className="absolute -top-4 -translate-x-1/2 bg-red-500 text-white text-[9px] font-extrabold px-1.5 py-0.5 rounded shadow">
                       Сьогодні
@@ -749,9 +748,8 @@ const Gantt = () => {
                     {/* Performer Card with Individual Horizontal Scroll / Slider */}
                     <div className="overflow-x-auto custom-scrollbar pb-2.5 pt-1 rounded-xl">
                       <div
-                        className="space-y-2"
+                        className="space-y-2 w-full"
                         style={{
-                          width: `calc(26rem + ${totalGridWidth}px)`,
                           minWidth: `calc(26rem + ${totalGridWidth}px)`
                         }}
                       >
@@ -790,11 +788,10 @@ const Gantt = () => {
 
                           {/* Daily Points Heatmap for Performer in Group Header */}
                           <div
-                            className="shrink-0 grid h-7 items-center"
+                            className="flex-1 grid h-7 items-center"
                             style={{
-                              width: `${totalGridWidth}px`,
                               minWidth: `${totalGridWidth}px`,
-                              gridTemplateColumns: `repeat(${timelineDays.length}, ${dayColWidth}px)`
+                              gridTemplateColumns: `repeat(${timelineDays.length}, minmax(${dayColWidth}px, 1fr))`
                             }}
                           >
                             {timelineDays.map((date, idx) => {
@@ -840,7 +837,7 @@ const Gantt = () => {
                             return (
                               <div
                                 key={project.id}
-                                className="flex items-center neu-flat p-2 rounded-2xl hover:brightness-[1.02] hover:-translate-y-0.5 transition-all group cursor-pointer border border-white/40 bg-white/30"
+                                className="flex items-center neu-flat p-2 rounded-2xl hover:brightness-[1.02] hover:-translate-y-0.5 transition-all group cursor-pointer border border-white/40 bg-white/30 w-full"
                                 onClick={() => setSelectedTaskDetails(project)}
                               >
                                 {/* Table columns on the left (Sticky Left) */}
@@ -878,16 +875,15 @@ const Gantt = () => {
 
                                 {/* Timeline / Workload Matrix Viewport */}
                                 <div
-                                  className="h-8 bg-[#d8dfe8]/70 rounded-xl relative overflow-hidden flex items-center shadow-inner shrink-0"
+                                  className="flex-1 h-8 bg-[#d8dfe8]/70 rounded-xl relative overflow-hidden flex items-center shadow-inner"
                                   style={{
-                                    width: `${totalGridWidth}px`,
                                     minWidth: `${totalGridWidth}px`
                                   }}
                                 >
                                   {/* Weekend background grid */}
                                   <div
                                     className="absolute inset-0 grid pointer-events-none"
-                                    style={{ gridTemplateColumns: `repeat(${timelineDays.length}, ${dayColWidth}px)` }}
+                                    style={{ gridTemplateColumns: `repeat(${timelineDays.length}, minmax(${dayColWidth}px, 1fr))` }}
                                   >
                                     {timelineDays.map((date, idx) => {
                                       const isWeekend = date.getDay() === 0 || date.getDay() === 6;
@@ -922,7 +918,7 @@ const Gantt = () => {
                                   {viewMode === 'workload' && (
                                     <div
                                       className="absolute inset-0 grid h-full items-center z-20"
-                                      style={{ gridTemplateColumns: `repeat(${timelineDays.length}, ${dayColWidth}px)` }}
+                                      style={{ gridTemplateColumns: `repeat(${timelineDays.length}, minmax(${dayColWidth}px, 1fr))` }}
                                     >
                                       {timelineDays.map((date, idx) => {
                                         const dateISO = formatDateISO(date);
@@ -956,7 +952,7 @@ const Gantt = () => {
                 ))}
 
                 {/* Total Department Daily Workload Summary Footer */}
-                <div className="flex items-center neu-flat p-2.5 rounded-xl border border-primary/30 bg-primary/5 mt-4">
+                <div className="flex items-center neu-flat p-2.5 rounded-xl border border-primary/30 bg-primary/5 mt-4 w-full">
                   <div className="w-[26rem] shrink-0 sticky left-0 z-30 bg-[#dbe4ef] backdrop-blur-sm rounded-l-xl pr-4 pl-2 flex items-center justify-between">
                     <span className="font-extrabold text-xs text-gray-800 uppercase tracking-wider flex items-center gap-1.5">
                       <Zap size={14} className="text-primary" />
@@ -965,11 +961,10 @@ const Gantt = () => {
                   </div>
 
                   <div
-                    className="shrink-0 grid h-7 items-center"
+                    className="flex-1 grid h-7 items-center"
                     style={{
-                      width: `${totalGridWidth}px`,
                       minWidth: `${totalGridWidth}px`,
-                      gridTemplateColumns: `repeat(${timelineDays.length}, ${dayColWidth}px)`
+                      gridTemplateColumns: `repeat(${timelineDays.length}, minmax(${dayColWidth}px, 1fr))`
                     }}
                   >
                     {timelineDays.map((date, idx) => {
