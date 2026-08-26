@@ -19,7 +19,8 @@ import {
   Zap,
   CheckCircle2,
   AlertTriangle,
-  Sparkles
+  Sparkles,
+  SlidersHorizontal
 } from 'lucide-react';
 
 const STATUS_CONFIG = {
@@ -235,10 +236,38 @@ const Gantt = () => {
     return { performersList: list, performerColorMap: map };
   }, [deptProjects, ignoredNames]);
 
+  // -------------------------------------------------------------
+  // Calculate maximum forecast date across all tasks for 'all' mode
+  // -------------------------------------------------------------
+  const maxForecastEndDate = useMemo(() => {
+    let maxD = new Date(today);
+    deptProjects.forEach((p) => {
+      if (p.status === 'completed') return;
+      const pts = Math.max(0.5, Number(p.points) || 1);
+      const estDays = Math.ceil(pts / CAPACITY_PER_DAY);
+      const startCandidate = parseDateSafe(p.startDate || p.createdAt || p.createdDate) || today;
+      const estEnd = new Date(startCandidate);
+      estEnd.setDate(estEnd.getDate() + estDays + 30);
+      if (estEnd.getTime() > maxD.getTime()) {
+        maxD = estEnd;
+      }
+    });
+    return maxD;
+  }, [deptProjects, today]);
+
   // Timeline view calculations
   const timelineDays = useMemo(() => {
     const days = [];
-    const numDays = zoomLevel === 'month' ? 60 : zoomLevel === 'week' ? 28 : 21;
+    let numDays = 28;
+    if (zoomLevel === '3w' || zoomLevel === 'day') numDays = 21;
+    else if (zoomLevel === '6w' || zoomLevel === 'week') numDays = 42;
+    else if (zoomLevel === '2m' || zoomLevel === 'month') numDays = 60;
+    else if (zoomLevel === '3m') numDays = 90;
+    else if (zoomLevel === 'all') {
+      const diffDays = Math.ceil((maxForecastEndDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+      numDays = Math.max(35, Math.min(180, diffDays + 14));
+    }
+
     const start = new Date(today);
     start.setDate(today.getDate() - 4 + viewOffsetWeeks * 7);
 
@@ -248,7 +277,7 @@ const Gantt = () => {
       days.push(d);
     }
     return days;
-  }, [zoomLevel, viewOffsetWeeks, today]);
+  }, [zoomLevel, viewOffsetWeeks, today, maxForecastEndDate]);
 
   const startDate = timelineDays[0];
   const endDate = timelineDays[timelineDays.length - 1];
@@ -431,6 +460,10 @@ const Gantt = () => {
       icon = <AlertTriangle size={8} className="inline text-red-600 mr-0.5" />;
     }
 
+    const dayColWidth = zoomLevel === 'all' || zoomLevel === '3m' ? 36 : zoomLevel === '2m' ? 38 : 42;
+    const totalGridWidth = timelineDays.length * dayColWidth;
+    const todayIndex = timelineDays.findIndex((d) => formatDateISO(d) === formatDateISO(today));
+
     return (
       <span className={`inline-flex items-center justify-center px-1 py-0.5 rounded text-[10px] font-mono border ${style}`}>
         {icon}
@@ -442,7 +475,7 @@ const Gantt = () => {
   return (
     <div className="space-y-6">
       {/* Header & Controls */}
-      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+      <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-4">
         <div>
           <h2 className="text-3xl font-extrabold tracking-tight text-gray-800 flex items-center gap-3">
             <CalendarRange className="text-primary" size={32} />
@@ -453,55 +486,97 @@ const Gantt = () => {
           </p>
         </div>
 
-        {/* Zoom & Navigation buttons */}
+        {/* Zoom & Range Slider Navigation */}
         <div className="flex flex-wrap items-center gap-3">
-          <div className="neu-flat p-1.5 rounded-2xl flex items-center gap-1.5 shadow-sm">
+          {/* Range Slider for Week Offset */}
+          <div className="flex items-center gap-2 neu-flat px-3.5 py-1.5 rounded-2xl shadow-sm bg-[#e0e5ec]">
+            <span className="text-[11px] font-extrabold uppercase text-gray-500 whitespace-nowrap flex items-center gap-1.5">
+              <SlidersHorizontal size={13} className="text-primary" />
+              Повзунок часу:
+            </span>
             <button
-              onClick={() => setZoomLevel('day')}
-              className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all ${
-                zoomLevel === 'day' ? 'neu-btn text-primary font-black bg-white' : 'text-gray-500 hover:text-gray-800'
-              }`}
+              type="button"
+              onClick={() => setViewOffsetWeeks((w) => Math.max(-4, w - 1))}
+              className="p-1 text-gray-600 hover:text-primary rounded-lg transition-all"
+              title="Попередній тиждень"
             >
-              Дні (3 тиж.)
+              <ChevronLeft size={14} />
             </button>
+            <input
+              type="range"
+              min={-4}
+              max={24}
+              step={1}
+              value={viewOffsetWeeks}
+              onChange={(e) => setViewOffsetWeeks(Number(e.target.value))}
+              className="w-24 sm:w-36 h-2 bg-gray-300 rounded-lg appearance-none cursor-pointer accent-blue-600"
+              title="Перетягніть повзунок для гортання графіка вбік"
+            />
             <button
-              onClick={() => setZoomLevel('week')}
-              className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all ${
-                zoomLevel === 'week' ? 'neu-btn text-primary font-black bg-white' : 'text-gray-500 hover:text-gray-800'
-              }`}
+              type="button"
+              onClick={() => setViewOffsetWeeks((w) => Math.min(24, w + 1))}
+              className="p-1 text-gray-600 hover:text-primary rounded-lg transition-all"
+              title="Наступний тиждень"
             >
-              4 Тижні
+              <ChevronRight size={14} />
             </button>
-            <button
-              onClick={() => setZoomLevel('month')}
-              className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all ${
-                zoomLevel === 'month' ? 'neu-btn text-primary font-black bg-white' : 'text-gray-500 hover:text-gray-800'
-              }`}
-            >
-              2 Місяці
-            </button>
+            <span className="text-xs font-mono font-black text-primary min-w-[55px] text-center">
+              {viewOffsetWeeks === 0 ? 'Сьогодні' : viewOffsetWeeks > 0 ? `+${viewOffsetWeeks} тиж.` : `${viewOffsetWeeks} тиж.`}
+            </span>
+            {viewOffsetWeeks !== 0 && (
+              <button
+                type="button"
+                onClick={() => setViewOffsetWeeks(0)}
+                className="px-2 py-0.5 text-[10px] font-bold text-gray-700 hover:text-primary bg-white/70 rounded-md shadow-xs transition-all"
+              >
+                Скинути
+              </button>
+            )}
           </div>
 
-          <div className="flex items-center gap-1.5 neu-flat p-1.5 rounded-2xl shadow-sm">
+          {/* Time Horizon Presets */}
+          <div className="neu-flat p-1.5 rounded-2xl flex items-center gap-1 shadow-sm">
             <button
-              onClick={() => setViewOffsetWeeks((w) => w - 1)}
-              className="p-1.5 text-gray-600 hover:text-primary rounded-lg transition-all"
-              title="Попередній період"
+              onClick={() => setZoomLevel('3w')}
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
+                zoomLevel === '3w' || zoomLevel === 'day' ? 'neu-btn text-primary font-black bg-white shadow-xs' : 'text-gray-500 hover:text-gray-800'
+              }`}
             >
-              <ChevronLeft size={16} />
+              3 тижні
             </button>
             <button
-              onClick={() => setViewOffsetWeeks(0)}
-              className="px-3 py-1 text-xs font-bold text-gray-700 hover:text-primary rounded-lg transition-all"
+              onClick={() => setZoomLevel('6w')}
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
+                zoomLevel === '6w' || zoomLevel === 'week' ? 'neu-btn text-primary font-black bg-white shadow-xs' : 'text-gray-500 hover:text-gray-800'
+              }`}
             >
-              Сьогодні
+              6 тижнів
             </button>
             <button
-              onClick={() => setViewOffsetWeeks((w) => w + 1)}
-              className="p-1.5 text-gray-600 hover:text-primary rounded-lg transition-all"
-              title="Наступний період"
+              onClick={() => setZoomLevel('2m')}
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
+                zoomLevel === '2m' || zoomLevel === 'month' ? 'neu-btn text-primary font-black bg-white shadow-xs' : 'text-gray-500 hover:text-gray-800'
+              }`}
             >
-              <ChevronRight size={16} />
+              2 місяці
+            </button>
+            <button
+              onClick={() => setZoomLevel('3m')}
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
+                zoomLevel === '3m' ? 'neu-btn text-primary font-black bg-white shadow-xs' : 'text-gray-500 hover:text-gray-800'
+              }`}
+            >
+              3 місяці
+            </button>
+            <button
+              onClick={() => setZoomLevel('all')}
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1 ${
+                zoomLevel === 'all' ? 'neu-btn text-purple-700 font-black bg-white shadow-xs ring-1 ring-purple-400' : 'text-purple-600 font-extrabold hover:text-purple-800'
+              }`}
+              title="Автоматично охопити всю чергу навантаження"
+            >
+              <Sparkles size={12} className="text-purple-500" />
+              Вся черга
             </button>
           </div>
         </div>
@@ -533,42 +608,39 @@ const Gantt = () => {
                 ? 'neu-btn text-primary bg-white shadow-sm'
                 : 'text-gray-500 hover:text-gray-800'
             }`}
-            title="Відобразити реальні поінти навантаження по днях"
+            title="Таблиця розподілу поінтів по днях"
           >
-            <Zap size={14} className={viewMode === 'workload' ? 'text-amber-500' : ''} />
+            <Layers size={14} />
             <span>Поінти по днях</span>
           </button>
         </div>
 
-        {/* Search */}
+        {/* Search Input */}
         <div className="flex-1 min-w-[200px] relative">
-          <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
+          <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" size={14} />
           <input
             type="text"
             placeholder="Пошук за проєктом або виконавцем..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full neu-flat pl-10 pr-4 py-2 rounded-xl text-xs font-medium text-gray-800 outline-none focus:ring-2 focus:ring-primary/40 bg-[#e0e5ec]"
+            className="w-full neu-pressed pl-9 pr-3 py-2 rounded-xl text-xs font-semibold text-gray-700 outline-none bg-transparent placeholder-gray-400"
           />
         </div>
 
-        {/* Grouping Toggle */}
+        {/* Group Mode Toggle */}
         <button
           type="button"
           onClick={() => setGroupByEmployee(!groupByEmployee)}
-          className={`neu-btn px-3.5 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all ${
-            groupByEmployee
-              ? 'text-primary font-black'
-              : 'text-gray-600 hover:text-gray-900'
+          className={`px-3.5 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all ${
+            groupByEmployee ? 'neu-btn text-primary font-black bg-white shadow-sm' : 'neu-flat text-gray-600'
           }`}
-          title="Групувати за виконавцями"
         >
-          <Layers size={14} className={groupByEmployee ? 'text-primary' : 'text-gray-500'} />
-          <span>{groupByEmployee ? 'За виконавцями' : 'Список'}</span>
+          <User size={13} />
+          <span>За виконавцями</span>
         </button>
 
         {/* Status Filter */}
-        <div className="w-44">
+        <div className="w-36">
           <select
             value={selectedStatus}
             onChange={(e) => setSelectedStatus(e.target.value)}
@@ -577,7 +649,7 @@ const Gantt = () => {
             <option value="all">Усі активні</option>
             <option value="active">В роботі</option>
             <option value="waiting">Очікує</option>
-            <option value="overdue">Протерміновано</option>
+            <option value="overdue">Протерміновані</option>
           </select>
         </div>
 
@@ -602,14 +674,14 @@ const Gantt = () => {
         </div>
       </div>
 
-      {/* Main Viewport Container with Sticky Header */}
+      {/* Main Viewport Container with Sticky Header & Smooth Horizontal Scroll */}
       <div className="neu-flat rounded-2xl border border-white/60 overflow-hidden shadow-sm">
-        <div className="overflow-x-auto overflow-y-auto max-h-[calc(100vh-200px)] p-5 relative">
-          <div className="min-w-[1200px]">
-            {/* Table & Timeline Header (Sticky) */}
+        <div className="overflow-x-auto overflow-y-auto max-h-[calc(100vh-200px)] p-4 relative custom-scrollbar">
+          <div style={{ width: `calc(26rem + ${totalGridWidth}px)`, minWidth: `calc(26rem + ${totalGridWidth}px)` }}>
+            {/* Table & Timeline Header (Sticky Top) */}
             <div className="sticky top-0 z-40 bg-[#e0e5ec] py-2.5 mb-4 border-b-2 border-gray-300 shadow-md flex items-center rounded-xl px-2">
-              {/* Left Column Headers */}
-              <div className="w-[26rem] shrink-0 grid grid-cols-12 gap-2 pr-3 pl-2 items-center text-[11px] font-extrabold uppercase tracking-wider text-gray-500">
+              {/* Left Column Headers (Sticky Left) */}
+              <div className="w-[26rem] shrink-0 sticky left-0 z-50 bg-[#e0e5ec] grid grid-cols-12 gap-2 pr-3 pl-2 items-center text-[11px] font-extrabold uppercase tracking-wider text-gray-500">
                 {/* Performer Header */}
                 <button
                   type="button"
@@ -634,7 +706,14 @@ const Gantt = () => {
               </div>
 
               {/* Timeline Days Header Grid */}
-              <div className="flex-1 grid" style={{ gridTemplateColumns: `repeat(${timelineDays.length}, minmax(0, 1fr))` }}>
+              <div
+                className="shrink-0 grid"
+                style={{
+                  width: `${totalGridWidth}px`,
+                  minWidth: `${totalGridWidth}px`,
+                  gridTemplateColumns: `repeat(${timelineDays.length}, ${dayColWidth}px)`
+                }}
+              >
                 {timelineDays.map((date, idx) => {
                   const isWeekend = date.getDay() === 0 || date.getDay() === 6;
                   const isToday = formatDateISO(date) === formatDateISO(today);
@@ -668,10 +747,10 @@ const Gantt = () => {
             ) : (
               <div className="space-y-4 relative">
                 {/* Vertical "Today" line */}
-                {todayPos !== null && todayPos >= 0 && todayPos <= 100 && (
+                {todayIndex !== -1 && (
                   <div
                     className="absolute top-0 bottom-0 w-0.5 bg-red-500 z-10 pointer-events-none"
-                    style={{ left: `calc(26rem + (100% - 26rem) * ${todayPos / 100})` }}
+                    style={{ left: `calc(26rem + ${todayIndex * dayColWidth + dayColWidth / 2}px)` }}
                   >
                     <span className="absolute -top-4 -translate-x-1/2 bg-red-500 text-white text-[9px] font-extrabold px-1.5 py-0.5 rounded shadow">
                       Сьогодні
@@ -686,10 +765,11 @@ const Gantt = () => {
                   >
                     {/* Performer Group Header with Availability Forecast */}
                     <div className="flex items-center p-2.5 rounded-xl bg-white/75 border border-gray-300/60 shadow-sm">
-                      <div className="w-[26rem] shrink-0 flex items-center justify-between pr-4 pl-1">
+                      {/* Left sticky group title */}
+                      <div className="w-[26rem] shrink-0 sticky left-0 z-30 bg-white/95 backdrop-blur-sm rounded-l-xl flex items-center justify-between pr-4 pl-1">
                         <div className="flex items-center gap-2.5">
                           <div className={`w-8 h-8 rounded-full flex items-center justify-center text-[11px] font-black text-white shadow-sm ${group.color.dot}`}>
-                            {group.name.split(' ').map(n => n[0]).join('').slice(0, 2)}
+                            {group.name.split(' ').map((n) => n[0]).join('').slice(0, 2)}
                           </div>
                           <div>
                             <div className="flex items-center gap-2">
@@ -717,7 +797,14 @@ const Gantt = () => {
                       </div>
 
                       {/* Daily Points Heatmap for Performer in Group Header */}
-                      <div className="flex-1 grid h-7 items-center" style={{ gridTemplateColumns: `repeat(${timelineDays.length}, minmax(0, 1fr))` }}>
+                      <div
+                        className="shrink-0 grid h-7 items-center"
+                        style={{
+                          width: `${totalGridWidth}px`,
+                          minWidth: `${totalGridWidth}px`,
+                          gridTemplateColumns: `repeat(${timelineDays.length}, ${dayColWidth}px)`
+                        }}
+                      >
                         {timelineDays.map((date, idx) => {
                           const isWeekend = date.getDay() === 0 || date.getDay() === 6;
                           const isToday = formatDateISO(date) === formatDateISO(today);
@@ -744,7 +831,7 @@ const Gantt = () => {
                       {group.items.map((project, taskIdx) => {
                         const perfColor = group.color;
                         const { schedule } = project;
-                        const { startDate: taskStart, endDate: taskEnd, totalPoints: taskPts, durationWorkingDays, pointsPerDay, dailyMap, isDeadlineRisk, deadlineDate } = schedule;
+                        const { startDate: taskStart, endDate: taskEnd, totalPoints: taskPts, durationWorkingDays, dailyMap, isDeadlineRisk, deadlineDate } = schedule;
 
                         let leftPercent = getPositionForDate(taskStart);
                         let rightPercent = getPositionForDate(taskEnd);
@@ -753,7 +840,7 @@ const Gantt = () => {
                         if (rightPercent === null) rightPercent = 100;
 
                         const clampedLeft = Math.max(0, Math.min(100, leftPercent));
-                        const clampedRight = Math.max(clampedLeft + 1.5, Math.min(100, rightPercent + (100 / timelineDays.length)));
+                        const clampedRight = Math.max(clampedLeft + 1, Math.min(100, rightPercent + (100 / timelineDays.length)));
                         const widthPercent = clampedRight - clampedLeft;
 
                         const isVisibleInView = rightPercent >= -10 && leftPercent <= 110;
@@ -764,8 +851,8 @@ const Gantt = () => {
                             className="flex items-center neu-flat p-2 rounded-2xl hover:brightness-[1.02] hover:-translate-y-0.5 transition-all group cursor-pointer border border-white/40 bg-white/30"
                             onClick={() => setSelectedTaskDetails(project)}
                           >
-                            {/* Table columns on the left */}
-                            <div className="w-[26rem] shrink-0 grid grid-cols-12 gap-2 pr-3 pl-1 items-center">
+                            {/* Table columns on the left (Sticky Left) */}
+                            <div className="w-[26rem] shrink-0 sticky left-0 z-20 bg-[#e6ebf2]/95 backdrop-blur-sm rounded-l-xl grid grid-cols-12 gap-2 pr-3 pl-1 items-center">
                               {/* Order in queue */}
                               <div className="col-span-1 flex items-center justify-center">
                                 <span className="w-5 h-5 rounded-full bg-gray-200 text-gray-700 text-[10px] font-black flex items-center justify-center">
@@ -798,11 +885,17 @@ const Gantt = () => {
                             </div>
 
                             {/* Timeline / Workload Matrix Viewport */}
-                            <div className="flex-1 h-8 bg-[#d8dfe8]/70 rounded-xl relative overflow-hidden flex items-center shadow-inner">
+                            <div
+                              className="h-8 bg-[#d8dfe8]/70 rounded-xl relative overflow-hidden flex items-center shadow-inner shrink-0"
+                              style={{
+                                width: `${totalGridWidth}px`,
+                                minWidth: `${totalGridWidth}px`
+                              }}
+                            >
                               {/* Weekend background grid */}
                               <div
                                 className="absolute inset-0 grid pointer-events-none"
-                                style={{ gridTemplateColumns: `repeat(${timelineDays.length}, minmax(0, 1fr))` }}
+                                style={{ gridTemplateColumns: `repeat(${timelineDays.length}, ${dayColWidth}px)` }}
                               >
                                 {timelineDays.map((date, idx) => {
                                   const isWeekend = date.getDay() === 0 || date.getDay() === 6;
@@ -835,7 +928,10 @@ const Gantt = () => {
 
                               {/* Mode 2: WORKLOAD DAILY POINTS MATRIX */}
                               {viewMode === 'workload' && (
-                                <div className="absolute inset-0 grid h-full items-center z-20" style={{ gridTemplateColumns: `repeat(${timelineDays.length}, minmax(0, 1fr))` }}>
+                                <div
+                                  className="absolute inset-0 grid h-full items-center z-20"
+                                  style={{ gridTemplateColumns: `repeat(${timelineDays.length}, ${dayColWidth}px)` }}
+                                >
                                   {timelineDays.map((date, idx) => {
                                     const dateISO = formatDateISO(date);
                                     const pts = dailyMap[dateISO];
@@ -867,14 +963,21 @@ const Gantt = () => {
 
                 {/* Total Department Daily Workload Summary Footer */}
                 <div className="flex items-center neu-flat p-2.5 rounded-xl border border-primary/30 bg-primary/5 mt-4">
-                  <div className="w-[26rem] shrink-0 pr-4 pl-2 flex items-center justify-between">
+                  <div className="w-[26rem] shrink-0 sticky left-0 z-30 bg-[#dbe4ef] backdrop-blur-sm rounded-l-xl pr-4 pl-2 flex items-center justify-between">
                     <span className="font-extrabold text-xs text-gray-800 uppercase tracking-wider flex items-center gap-1.5">
                       <Zap size={14} className="text-primary" />
                       Загальне навантаження відділу:
                     </span>
                   </div>
 
-                  <div className="flex-1 grid h-7 items-center" style={{ gridTemplateColumns: `repeat(${timelineDays.length}, minmax(0, 1fr))` }}>
+                  <div
+                    className="shrink-0 grid h-7 items-center"
+                    style={{
+                      width: `${totalGridWidth}px`,
+                      minWidth: `${totalGridWidth}px`,
+                      gridTemplateColumns: `repeat(${timelineDays.length}, ${dayColWidth}px)`
+                    }}
+                  >
                     {timelineDays.map((date, idx) => {
                       const isWeekend = date.getDay() === 0 || date.getDay() === 6;
                       const isToday = formatDateISO(date) === formatDateISO(today);
