@@ -761,202 +761,213 @@ const Gantt = () => {
                 {scheduledGroups.map((group, gIdx) => (
                   <div
                     key={gIdx}
-                    className="neu-flat p-3 rounded-2xl mb-4 border border-white/60 bg-[#e0e5ec]/60 space-y-2.5 shadow-sm"
+                    className="neu-flat p-3.5 rounded-2xl mb-5 border border-white/60 bg-[#e0e5ec]/70 shadow-md space-y-2.5"
                   >
-                    {/* Performer Group Header with Availability Forecast */}
-                    <div className="flex items-center p-2.5 rounded-xl bg-white/75 border border-gray-300/60 shadow-sm">
-                      {/* Left sticky group title */}
-                      <div className="w-[26rem] shrink-0 sticky left-0 z-30 bg-white/95 backdrop-blur-sm rounded-l-xl flex items-center justify-between pr-4 pl-1">
-                        <div className="flex items-center gap-2.5">
-                          <div className={`w-8 h-8 rounded-full flex items-center justify-center text-[11px] font-black text-white shadow-sm ${group.color.dot}`}>
-                            {group.name.split(' ').map((n) => n[0]).join('').slice(0, 2)}
+                    {/* Performer Card with Individual Horizontal Scroll / Slider */}
+                    <div className="overflow-x-auto custom-scrollbar pb-2.5 pt-1 rounded-xl">
+                      <div
+                        className="space-y-2"
+                        style={{
+                          width: `calc(26rem + ${totalGridWidth}px)`,
+                          minWidth: `calc(26rem + ${totalGridWidth}px)`
+                        }}
+                      >
+                        {/* Performer Group Header with Availability Forecast */}
+                        <div className="flex items-center p-2.5 rounded-xl bg-white/85 border border-gray-300/60 shadow-sm">
+                          {/* Left sticky group title */}
+                          <div className="w-[26rem] shrink-0 sticky left-0 z-30 bg-white/95 backdrop-blur-sm rounded-l-xl flex items-center justify-between pr-4 pl-1">
+                            <div className="flex items-center gap-2.5">
+                              <div className={`w-8 h-8 rounded-full flex items-center justify-center text-[11px] font-black text-white shadow-sm ${group.color.dot}`}>
+                                {group.name.split(' ').map((n) => n[0]).join('').slice(0, 2)}
+                              </div>
+                              <div>
+                                <div className="flex items-center gap-2">
+                                  <span className="font-extrabold text-xs text-gray-800">{group.name}</span>
+                                  <span className="text-[10px] text-gray-500 font-medium">
+                                    ({group.items.length} {group.items.length === 1 ? 'задача' : group.items.length < 5 ? 'задачі' : 'задач'})
+                                  </span>
+                                </div>
+                                {/* Forecast badge: When this performer will be free */}
+                                <div className="flex items-center gap-2 mt-0.5">
+                                  <span className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-700 bg-emerald-100/80 px-2 py-0.2 rounded border border-emerald-300">
+                                    <Sparkles size={10} className="text-emerald-600" />
+                                    Звільниться: {formatDateReadable(group.freeDate)}
+                                  </span>
+                                  <span className="text-[10px] text-gray-500 font-mono font-medium">
+                                    (~{group.workingDaysToFinish} роб. дн.)
+                                  </span>
+                                </div>
+                              </div>
+                            </div>
+
+                            <span className="font-black text-[11px] text-primary bg-primary/10 px-2.5 py-1 rounded-lg border border-primary/20 shrink-0">
+                              Черга: {group.totalPoints}п
+                            </span>
                           </div>
-                          <div>
-                            <div className="flex items-center gap-2">
-                              <span className="font-extrabold text-xs text-gray-800">{group.name}</span>
-                              <span className="text-[10px] text-gray-500 font-medium">
-                                ({group.items.length} {group.items.length === 1 ? 'задача' : group.items.length < 5 ? 'задачі' : 'задач'})
-                              </span>
-                            </div>
-                            {/* Forecast badge: When this performer will be free */}
-                            <div className="flex items-center gap-2 mt-0.5">
-                              <span className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-700 bg-emerald-100/80 px-2 py-0.2 rounded border border-emerald-300">
-                                <Sparkles size={10} className="text-emerald-600" />
-                                Звільниться: {formatDateReadable(group.freeDate)}
-                              </span>
-                              <span className="text-[10px] text-gray-500 font-mono font-medium">
-                                (~{group.workingDaysToFinish} роб. дн.)
-                              </span>
-                            </div>
+
+                          {/* Daily Points Heatmap for Performer in Group Header */}
+                          <div
+                            className="shrink-0 grid h-7 items-center"
+                            style={{
+                              width: `${totalGridWidth}px`,
+                              minWidth: `${totalGridWidth}px`,
+                              gridTemplateColumns: `repeat(${timelineDays.length}, ${dayColWidth}px)`
+                            }}
+                          >
+                            {timelineDays.map((date, idx) => {
+                              const isWeekend = date.getDay() === 0 || date.getDay() === 6;
+                              const isToday = formatDateISO(date) === formatDateISO(today);
+                              const dateISO = formatDateISO(date);
+                              const dayPts = group.dailyPointSums[dateISO] || 0;
+
+                              return (
+                                <div
+                                  key={idx}
+                                  className={`h-full flex items-center justify-center border-l border-gray-300/40 ${
+                                    isToday ? 'bg-primary/10' : isWeekend ? 'bg-gray-300/30' : ''
+                                  }`}
+                                  title={`${group.name} на ${date.toLocaleDateString('uk-UA')}: ${dayPts} поінтів`}
+                                >
+                                  {renderWorkloadCell(dayPts, isWeekend, isToday)}
+                                </div>
+                              );
+                            })}
                           </div>
                         </div>
 
-                        <span className="font-black text-[11px] text-primary bg-primary/10 px-2.5 py-1 rounded-lg border border-primary/20 shrink-0">
-                          Черга: {group.totalPoints}п
-                        </span>
-                      </div>
+                        {/* Task Rows inside Sequential Queue */}
+                        <div className="space-y-2">
+                          {group.items.map((project, taskIdx) => {
+                            const perfColor = group.color;
+                            const { schedule } = project;
+                            const { startDate: taskStart, endDate: taskEnd, totalPoints: taskPts, durationWorkingDays, dailyMap, isDeadlineRisk, deadlineDate } = schedule;
 
-                      {/* Daily Points Heatmap for Performer in Group Header */}
-                      <div
-                        className="shrink-0 grid h-7 items-center"
-                        style={{
-                          width: `${totalGridWidth}px`,
-                          minWidth: `${totalGridWidth}px`,
-                          gridTemplateColumns: `repeat(${timelineDays.length}, ${dayColWidth}px)`
-                        }}
-                      >
-                        {timelineDays.map((date, idx) => {
-                          const isWeekend = date.getDay() === 0 || date.getDay() === 6;
-                          const isToday = formatDateISO(date) === formatDateISO(today);
-                          const dateISO = formatDateISO(date);
-                          const dayPts = group.dailyPointSums[dateISO] || 0;
+                            let leftPercent = getPositionForDate(taskStart);
+                            let rightPercent = getPositionForDate(taskEnd);
 
-                          return (
-                            <div
-                              key={idx}
-                              className={`h-full flex items-center justify-center border-l border-gray-300/40 ${
-                                isToday ? 'bg-primary/10' : isWeekend ? 'bg-gray-300/30' : ''
-                              }`}
-                              title={`${group.name} на ${date.toLocaleDateString('uk-UA')}: ${dayPts} поінтів`}
-                            >
-                              {renderWorkloadCell(dayPts, isWeekend, isToday)}
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </div>
+                            if (leftPercent === null) leftPercent = 0;
+                            if (rightPercent === null) rightPercent = 100;
 
-                    {/* Task Rows inside Sequential Queue */}
-                    <div className="space-y-2">
-                      {group.items.map((project, taskIdx) => {
-                        const perfColor = group.color;
-                        const { schedule } = project;
-                        const { startDate: taskStart, endDate: taskEnd, totalPoints: taskPts, durationWorkingDays, dailyMap, isDeadlineRisk, deadlineDate } = schedule;
+                            const clampedLeft = Math.max(0, Math.min(100, leftPercent));
+                            const clampedRight = Math.max(clampedLeft + 1, Math.min(100, rightPercent + (100 / timelineDays.length)));
+                            const widthPercent = clampedRight - clampedLeft;
 
-                        let leftPercent = getPositionForDate(taskStart);
-                        let rightPercent = getPositionForDate(taskEnd);
+                            const isVisibleInView = rightPercent >= -10 && leftPercent <= 110;
 
-                        if (leftPercent === null) leftPercent = 0;
-                        if (rightPercent === null) rightPercent = 100;
-
-                        const clampedLeft = Math.max(0, Math.min(100, leftPercent));
-                        const clampedRight = Math.max(clampedLeft + 1, Math.min(100, rightPercent + (100 / timelineDays.length)));
-                        const widthPercent = clampedRight - clampedLeft;
-
-                        const isVisibleInView = rightPercent >= -10 && leftPercent <= 110;
-
-                        return (
-                          <div
-                            key={project.id}
-                            className="flex items-center neu-flat p-2 rounded-2xl hover:brightness-[1.02] hover:-translate-y-0.5 transition-all group cursor-pointer border border-white/40 bg-white/30"
-                            onClick={() => setSelectedTaskDetails(project)}
-                          >
-                            {/* Table columns on the left (Sticky Left) */}
-                            <div className="w-[26rem] shrink-0 sticky left-0 z-20 bg-[#e6ebf2]/95 backdrop-blur-sm rounded-l-xl grid grid-cols-12 gap-2 pr-3 pl-1 items-center">
-                              {/* Order in queue */}
-                              <div className="col-span-1 flex items-center justify-center">
-                                <span className="w-5 h-5 rounded-full bg-gray-200 text-gray-700 text-[10px] font-black flex items-center justify-center">
-                                  {taskIdx + 1}
-                                </span>
-                              </div>
-
-                              {/* Project Name & Calculated Timing */}
-                              <div className="col-span-11 min-w-0 pr-1">
-                                <div className="flex items-center justify-between gap-1">
-                                  <p className="font-bold text-xs text-gray-800 truncate" title={project.name}>
-                                    {project.name}
-                                  </p>
-                                  <span className="text-[10px] font-black text-gray-700 bg-gray-200/80 px-1.5 py-0.2 rounded shrink-0">
-                                    {taskPts}п
-                                  </span>
-                                </div>
-                                <div className="flex items-center gap-2 text-[10px] text-gray-500 font-mono mt-0.5">
-                                  <span>
-                                    План: {formatDateShort(taskStart)} ➔ {formatDateShort(taskEnd)} ({durationWorkingDays} роб. дн.)
-                                  </span>
-                                  {isDeadlineRisk && (
-                                    <span className="text-red-600 font-bold bg-red-100 px-1.5 py-0.2 rounded border border-red-200 flex items-center gap-0.5" title={`Дедлайн: ${formatDateReadable(deadlineDate)}`}>
-                                      <AlertTriangle size={9} />
-                                      Дедлайн: {formatDateShort(deadlineDate)}
+                            return (
+                              <div
+                                key={project.id}
+                                className="flex items-center neu-flat p-2 rounded-2xl hover:brightness-[1.02] hover:-translate-y-0.5 transition-all group cursor-pointer border border-white/40 bg-white/30"
+                                onClick={() => setSelectedTaskDetails(project)}
+                              >
+                                {/* Table columns on the left (Sticky Left) */}
+                                <div className="w-[26rem] shrink-0 sticky left-0 z-20 bg-[#e6ebf2]/95 backdrop-blur-sm rounded-l-xl grid grid-cols-12 gap-2 pr-3 pl-1 items-center">
+                                  {/* Order in queue */}
+                                  <div className="col-span-1 flex items-center justify-center">
+                                    <span className="w-5 h-5 rounded-full bg-gray-200 text-gray-700 text-[10px] font-black flex items-center justify-center">
+                                      {taskIdx + 1}
                                     </span>
+                                  </div>
+
+                                  {/* Project Name & Calculated Timing */}
+                                  <div className="col-span-11 min-w-0 pr-1">
+                                    <div className="flex items-center justify-between gap-1">
+                                      <p className="font-bold text-xs text-gray-800 truncate" title={project.name}>
+                                        {project.name}
+                                      </p>
+                                      <span className="text-[10px] font-black text-gray-700 bg-gray-200/80 px-1.5 py-0.2 rounded shrink-0">
+                                        {taskPts}п
+                                      </span>
+                                    </div>
+                                    <div className="flex items-center gap-2 text-[10px] text-gray-500 font-mono mt-0.5">
+                                      <span>
+                                        План: {formatDateShort(taskStart)} ➔ {formatDateShort(taskEnd)} ({durationWorkingDays} роб. дн.)
+                                      </span>
+                                      {isDeadlineRisk && (
+                                        <span className="text-red-600 font-bold bg-red-100 px-1.5 py-0.2 rounded border border-red-200 flex items-center gap-0.5" title={`Дедлайн: ${formatDateReadable(deadlineDate)}`}>
+                                          <AlertTriangle size={9} />
+                                          Дедлайн: {formatDateShort(deadlineDate)}
+                                        </span>
+                                      )}
+                                    </div>
+                                  </div>
+                                </div>
+
+                                {/* Timeline / Workload Matrix Viewport */}
+                                <div
+                                  className="h-8 bg-[#d8dfe8]/70 rounded-xl relative overflow-hidden flex items-center shadow-inner shrink-0"
+                                  style={{
+                                    width: `${totalGridWidth}px`,
+                                    minWidth: `${totalGridWidth}px`
+                                  }}
+                                >
+                                  {/* Weekend background grid */}
+                                  <div
+                                    className="absolute inset-0 grid pointer-events-none"
+                                    style={{ gridTemplateColumns: `repeat(${timelineDays.length}, ${dayColWidth}px)` }}
+                                  >
+                                    {timelineDays.map((date, idx) => {
+                                      const isWeekend = date.getDay() === 0 || date.getDay() === 6;
+                                      return (
+                                        <div
+                                          key={idx}
+                                          className={`h-full border-r border-gray-300/30 ${isWeekend ? 'bg-gray-300/40' : ''}`}
+                                        />
+                                      );
+                                    })}
+                                  </div>
+
+                                  {/* Mode 1: SEQUENTIAL GANTT 3D BARS */}
+                                  {viewMode === 'gantt' && isVisibleInView && (
+                                    <div
+                                      className={`absolute h-6 rounded-lg ${perfColor.bar} text-white font-black text-[10px] px-2.5 flex items-center justify-between transition-all z-20 overflow-hidden hover:scale-[1.01]`}
+                                      style={{
+                                        left: `${clampedLeft}%`,
+                                        width: `${widthPercent}%`,
+                                        minWidth: '36px'
+                                      }}
+                                      title={`№${taskIdx + 1} у черзі: ${project.name}\nВиконавець: ${group.name}\nРозрахунковий початок: ${formatDateReadable(taskStart)}\nРозрахунковий кінець: ${formatDateReadable(taskEnd)}\nСкладність: ${taskPts}п (${durationWorkingDays} роб. днів по 42п/день)`}
+                                    >
+                                      <span className="truncate pr-1 drop-shadow-sm">{project.name}</span>
+                                      <span className="text-[9px] font-mono opacity-95 shrink-0 whitespace-nowrap bg-black/25 px-1.5 py-0.5 rounded shadow-sm">
+                                        {taskPts}п · {formatDateShort(taskStart)}-{formatDateShort(taskEnd)}
+                                      </span>
+                                    </div>
+                                  )}
+
+                                  {/* Mode 2: WORKLOAD DAILY POINTS MATRIX */}
+                                  {viewMode === 'workload' && (
+                                    <div
+                                      className="absolute inset-0 grid h-full items-center z-20"
+                                      style={{ gridTemplateColumns: `repeat(${timelineDays.length}, ${dayColWidth}px)` }}
+                                    >
+                                      {timelineDays.map((date, idx) => {
+                                        const dateISO = formatDateISO(date);
+                                        const pts = dailyMap[dateISO];
+                                        const isWeekend = date.getDay() === 0 || date.getDay() === 6;
+
+                                        if (isWeekend) return <div key={idx} />;
+
+                                        if (pts) {
+                                          return (
+                                            <div key={idx} className="h-full flex items-center justify-center px-0.5">
+                                              <span className={`w-full py-0.5 rounded text-center text-[10px] font-bold font-mono border shadow-sm ${perfColor.light}`}>
+                                                {pts}п
+                                              </span>
+                                            </div>
+                                          );
+                                        }
+
+                                        return <div key={idx} className="h-full flex items-center justify-center text-[9px] text-gray-300 font-mono">-</div>;
+                                      })}
+                                    </div>
                                   )}
                                 </div>
                               </div>
-                            </div>
-
-                            {/* Timeline / Workload Matrix Viewport */}
-                            <div
-                              className="h-8 bg-[#d8dfe8]/70 rounded-xl relative overflow-hidden flex items-center shadow-inner shrink-0"
-                              style={{
-                                width: `${totalGridWidth}px`,
-                                minWidth: `${totalGridWidth}px`
-                              }}
-                            >
-                              {/* Weekend background grid */}
-                              <div
-                                className="absolute inset-0 grid pointer-events-none"
-                                style={{ gridTemplateColumns: `repeat(${timelineDays.length}, ${dayColWidth}px)` }}
-                              >
-                                {timelineDays.map((date, idx) => {
-                                  const isWeekend = date.getDay() === 0 || date.getDay() === 6;
-                                  return (
-                                    <div
-                                      key={idx}
-                                      className={`h-full border-r border-gray-300/30 ${isWeekend ? 'bg-gray-300/40' : ''}`}
-                                    />
-                                  );
-                                })}
-                              </div>
-
-                              {/* Mode 1: SEQUENTIAL GANTT 3D BARS */}
-                              {viewMode === 'gantt' && isVisibleInView && (
-                                <div
-                                  className={`absolute h-6 rounded-lg ${perfColor.bar} text-white font-black text-[10px] px-2.5 flex items-center justify-between transition-all z-20 overflow-hidden hover:scale-[1.01]`}
-                                  style={{
-                                    left: `${clampedLeft}%`,
-                                    width: `${widthPercent}%`,
-                                    minWidth: '36px'
-                                  }}
-                                  title={`№${taskIdx + 1} у черзі: ${project.name}\nВиконавець: ${group.name}\nРозрахунковий початок: ${formatDateReadable(taskStart)}\nРозрахунковий кінець: ${formatDateReadable(taskEnd)}\nСкладність: ${taskPts}п (${durationWorkingDays} роб. днів по 42п/день)`}
-                                >
-                                  <span className="truncate pr-1 drop-shadow-sm">{project.name}</span>
-                                  <span className="text-[9px] font-mono opacity-95 shrink-0 whitespace-nowrap bg-black/25 px-1.5 py-0.5 rounded shadow-sm">
-                                    {taskPts}п · {formatDateShort(taskStart)}-{formatDateShort(taskEnd)}
-                                  </span>
-                                </div>
-                              )}
-
-                              {/* Mode 2: WORKLOAD DAILY POINTS MATRIX */}
-                              {viewMode === 'workload' && (
-                                <div
-                                  className="absolute inset-0 grid h-full items-center z-20"
-                                  style={{ gridTemplateColumns: `repeat(${timelineDays.length}, ${dayColWidth}px)` }}
-                                >
-                                  {timelineDays.map((date, idx) => {
-                                    const dateISO = formatDateISO(date);
-                                    const pts = dailyMap[dateISO];
-                                    const isWeekend = date.getDay() === 0 || date.getDay() === 6;
-
-                                    if (isWeekend) return <div key={idx} />;
-
-                                    if (pts) {
-                                      return (
-                                        <div key={idx} className="h-full flex items-center justify-center px-0.5">
-                                          <span className={`w-full py-0.5 rounded text-center text-[10px] font-bold font-mono border shadow-sm ${perfColor.light}`}>
-                                            {pts}п
-                                          </span>
-                                        </div>
-                                      );
-                                    }
-
-                                    return <div key={idx} className="h-full flex items-center justify-center text-[9px] text-gray-300 font-mono">-</div>;
-                                  })}
-                                </div>
-                              )}
-                            </div>
-                          </div>
-                        );
-                      })}
+                            );
+                          })}
+                        </div>
+                      </div>
                     </div>
                   </div>
                 ))}
