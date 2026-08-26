@@ -705,7 +705,7 @@ const Gantt = () => {
             {/* Table & Timeline Header (Sticky Top) */}
             <div className="sticky top-0 z-40 bg-[#e0e5ec] py-2.5 mb-4 border-b-2 border-gray-300 shadow-md flex items-center rounded-xl px-2">
               {/* Left Column Headers (Sticky Left) */}
-              <div className="w-[26rem] shrink-0 sticky left-0 z-50 bg-[#e0e5ec] grid grid-cols-12 gap-2 pr-3 pl-2 items-center text-[11px] font-extrabold uppercase tracking-wider text-gray-500">
+              <div className="w-[26rem] shrink-0 sticky left-0 z-40 bg-[#e0e5ec] grid grid-cols-12 gap-2 pr-3 pl-2 items-center text-[11px] font-extrabold uppercase tracking-wider text-gray-500 border-r border-gray-300 shadow-md">
                 {/* Performer Header */}
                 <button
                   type="button"
@@ -772,8 +772,8 @@ const Gantt = () => {
                 {/* Vertical "Today" line */}
                 {todayIndex !== -1 && (
                   <div
-                    className="absolute top-0 bottom-0 w-0.5 bg-red-500 z-10 pointer-events-none"
-                    style={{ left: `calc(26rem + (100% - 26rem) * ${(todayIndex + 0.5) / timelineDays.length})` }}
+                    className="absolute top-0 bottom-0 w-0.5 bg-red-500 z-20 pointer-events-none"
+                    style={{ left: `calc(26rem + ${todayIndex * dayColWidth + dayColWidth / 2}px)` }}
                   >
                     <span className="absolute -top-4 -translate-x-1/2 bg-red-500 text-white text-[9px] font-extrabold px-1.5 py-0.5 rounded shadow">
                       Сьогодні
@@ -787,9 +787,9 @@ const Gantt = () => {
                     className="neu-flat p-3 rounded-2xl mb-4 border border-white/60 bg-[#e0e5ec]/60 space-y-2 shadow-sm w-full"
                   >
                     {/* Performer Group Header with Availability Forecast */}
-                    <div className="flex items-center p-2.5 rounded-xl bg-white/85 border border-gray-300/60 shadow-sm w-full">
+                    <div className="flex items-center p-2.5 rounded-xl bg-white/90 border border-gray-300/60 shadow-sm w-full">
                       {/* Left sticky group title */}
-                      <div className="w-[26rem] shrink-0 sticky left-0 z-30 bg-white/95 backdrop-blur-sm rounded-l-xl flex items-center justify-between pr-4 pl-1">
+                      <div className="w-[26rem] shrink-0 sticky left-0 z-30 bg-[#e0e5ec] rounded-l-xl flex items-center justify-between pr-4 pl-2 border-r border-gray-300 shadow-md">
                         <div className="flex items-center gap-2.5">
                           <div className={`w-8 h-8 rounded-full flex items-center justify-center text-[11px] font-black text-white shadow-sm ${group.color.dot}`}>
                             {group.name.split(' ').map((n) => n[0]).join('').slice(0, 2)}
@@ -874,7 +874,7 @@ const Gantt = () => {
                             onClick={() => setSelectedTaskDetails(project)}
                           >
                             {/* Table columns on the left (Sticky Left) */}
-                            <div className="w-[26rem] shrink-0 sticky left-0 z-20 bg-[#e6ebf2]/95 backdrop-blur-sm rounded-l-xl grid grid-cols-12 gap-2 pr-3 pl-1 items-center">
+                            <div className="w-[26rem] shrink-0 sticky left-0 z-30 bg-[#e0e5ec] rounded-l-xl grid grid-cols-12 gap-2 pr-3 pl-2 items-center border-r border-gray-300 shadow-md">
                               {/* Order in queue */}
                               <div className="col-span-1 flex items-center justify-center">
                                 <span className="w-5 h-5 rounded-full bg-gray-200 text-gray-700 text-[10px] font-black flex items-center justify-center">
@@ -908,7 +908,7 @@ const Gantt = () => {
 
                             {/* Timeline / Workload Matrix Viewport */}
                             <div
-                              className="flex-1 h-8 bg-[#d8dfe8]/70 rounded-xl relative overflow-hidden flex items-center shadow-inner"
+                              className="flex-1 h-8 bg-[#d8dfe8]/70 rounded-xl relative overflow-hidden flex items-center shadow-inner z-10"
                               style={{
                                 minWidth: `${totalGridWidth}px`
                               }}
@@ -932,7 +932,7 @@ const Gantt = () => {
                               {/* Mode 1: SEQUENTIAL GANTT 3D BARS */}
                               {viewMode === 'gantt' && isVisibleInView && (
                                 <div
-                                  className={`absolute h-6 rounded-lg ${perfColor.bar} text-white font-black text-[10px] px-2.5 flex items-center justify-between transition-all z-20 overflow-hidden hover:scale-[1.01]`}
+                                  className={`absolute h-6 rounded-lg ${perfColor.bar} text-white font-black text-[10px] px-2.5 flex items-center justify-between transition-all z-10 overflow-hidden hover:scale-[1.01]`}
                                   style={{
                                     left: `${clampedLeft}%`,
                                     width: `${widthPercent}%`,
@@ -950,7 +950,7 @@ const Gantt = () => {
                               {/* Mode 2: WORKLOAD DAILY POINTS MATRIX */}
                               {viewMode === 'workload' && (
                                 <div
-                                  className="absolute inset-0 grid h-full items-center z-20"
+                                  className="absolute inset-0 grid h-full items-center z-10"
                                   style={{ gridTemplateColumns: `repeat(${timelineDays.length}, minmax(${dayColWidth}px, 1fr))` }}
                                 >
                                   {timelineDays.map((date, idx) => {
@@ -984,7 +984,7 @@ const Gantt = () => {
 
                 {/* Total Department Daily Workload Summary Footer */}
                 <div className="flex items-center neu-flat p-2.5 rounded-xl border border-primary/30 bg-primary/5 mt-4 w-full">
-                  <div className="w-[26rem] shrink-0 sticky left-0 z-30 bg-[#dbe4ef] backdrop-blur-sm rounded-l-xl pr-4 pl-2 flex items-center justify-between">
+                  <div className="w-[26rem] shrink-0 sticky left-0 z-30 bg-[#d8dfe8] rounded-l-xl pr-4 pl-2 flex items-center justify-between border-r border-gray-300 shadow-md">
                     <span className="font-extrabold text-xs text-gray-800 uppercase tracking-wider flex items-center gap-1.5">
                       <Zap size={14} className="text-primary" />
                       Загальне навантаження відділу:
