@@ -557,10 +557,23 @@ export const exportStandardSalaryTemplateExcel = ({
     { wch: 48 }  // P: виріб+кількість
   ];
 
-  XLSX.utils.book_append_sheet(wb, ws, 'Звіт ЗП відділу');
+  const monthsUA = [
+    'Січень', 'Лютий', 'Березень', 'Квітень', 'Травень', 'Червень',
+    'Липень', 'Серпень', 'Вересень', 'Жовтень', 'Листопад', 'Грудень'
+  ];
+  let sheetName = 'Звіт ЗП';
+  if (startDate) {
+    const sDate = new Date(startDate);
+    if (!isNaN(sDate.getTime())) {
+      sheetName = monthsUA[sDate.getMonth()] || 'Звіт ЗП';
+    }
+  }
+
+  XLSX.utils.book_append_sheet(wb, ws, sheetName);
 
   const cleanDept = String(departmentName || 'Відділ').replace(/[\\/:*?"<>|]/g, '_');
-  const fileName = `Звіт_ЗП_${cleanDept}_${startDate}_${endDate}.xlsx`;
+  const fileName = `Звіт_ЗП_${cleanDept}_${sheetName}_${startDate}_${endDate}.xlsx`;
   XLSX.writeFile(wb, fileName);
 };
+
 
