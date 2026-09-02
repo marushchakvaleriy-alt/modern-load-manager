@@ -20,7 +20,10 @@ import {
   Check,
   Filter,
   Sparkles,
-  Users
+  Users,
+  ArrowUpDown,
+  ArrowUp,
+  ArrowDown
 } from 'lucide-react';
 import { db } from '../lib/firebase';
 import { useLoadEngine } from '../hooks/useLoadEngine';
@@ -83,6 +86,14 @@ const Audit = () => {
   const [copiedId, setCopiedId] = useState(null);
   const [taskTypeFilter, setTaskTypeFilter] = useState('all'); // 'all', 'new', 'revisions'
 
+  // Task Table Sorting state
+  const [taskSortField, setTaskSortField] = useState('completedAt'); // 'completedAt', 'points', 'bitrixId', 'name', 'taskType', 'spentTime', 'itemsInfo'
+  const [taskSortOrder, setTaskSortOrder] = useState('desc'); // 'asc' | 'desc'
+
+  // Employee sorting state
+  const [empSortField, setEmpSortField] = useState('points'); // 'points', 'name', 'efficiency', 'tasks'
+  const [empSortOrder, setEmpSortOrder] = useState('desc');
+
   const { filterByDepartment, auditTabLabel, employeeSingleTitle, departmentLabel } = useDepartment();
   const deptProjects = filterByDepartment(projects);
   const deptEmployees = filterByDepartment(employees);
@@ -105,7 +116,7 @@ const Audit = () => {
 
   // Compute stats for all department employees
   const auditData = useMemo(() => {
-    return deptEmployees
+    const list = deptEmployees
       .filter((emp) => !emp.isIgnored)
       .map((emp) => {
         const stats = calculateEfficiency(emp.name, startDate, endDate);
@@ -114,9 +125,48 @@ const Audit = () => {
           employeeName: emp.name,
           stats
         };
-      })
-      .sort((a, b) => b.stats.totalPoints - a.stats.totalPoints);
-  }, [deptEmployees, calculateEfficiency, startDate, endDate]);
+      });
+
+    list.sort((a, b) => {
+      let comp = 0;
+      if (empSortField === 'points') {
+        comp = (a.stats.totalPoints || 0) - (b.stats.totalPoints || 0);
+      } else if (empSortField === 'name') {
+        comp = a.employeeName.localeCompare(b.employeeName);
+      } else if (empSortField === 'efficiency') {
+        comp = (a.stats.efficiency || 0) - (b.stats.efficiency || 0);
+      } else if (empSortField === 'tasks') {
+        comp = (a.stats.completedProjects?.length || 0) - (b.stats.completedProjects?.length || 0);
+      }
+      return empSortOrder === 'asc' ? comp : -comp;
+    });
+
+    return list;
+  }, [deptEmployees, calculateEfficiency, startDate, endDate, empSortField, empSortOrder]);
+
+  const handleTaskSort = (field) => {
+    if (taskSortField === field) {
+      setTaskSortOrder((prev) => (prev === 'asc' ? 'desc' : 'asc'));
+    } else {
+      setTaskSortField(field);
+      if (['completedAt', 'points', 'spentTime'].includes(field)) {
+        setTaskSortOrder('desc');
+      } else {
+        setTaskSortOrder('asc');
+      }
+    }
+  };
+
+  const renderSortIndicator = (field) => {
+    if (taskSortField !== field) {
+      return <ArrowUpDown size={11} className="opacity-30 ml-1 inline group-hover:opacity-80 transition-opacity" />;
+    }
+    return taskSortOrder === 'asc' ? (
+      <ArrowUp size={12} className="text-primary ml-1 inline" />
+    ) : (
+      <ArrowDown size={12} className="text-primary ml-1 inline" />
+    );
+  };
 
   // Overall Department Totals for Selected Period
   const departmentTotals = useMemo(() => {
@@ -329,6 +379,27 @@ const Audit = () => {
             </select>
           </div>
 
+          <div className="flex items-center gap-2">
+            <span className="text-[11px] font-extrabold uppercase text-gray-500 hidden sm:inline">Сортувати людей:</span>
+            <select
+              value={`${empSortField}_${empSortOrder}`}
+              onChange={(e) => {
+                const [f, o] = e.target.value.split('_');
+                setEmpSortField(f);
+                setEmpSortOrder(o);
+              }}
+              className="px-3 py-2 bg-[#e0e5ec] rounded-xl text-xs font-bold text-gray-700 outline-none cursor-pointer"
+            >
+              <option value="points_desc">Поінти (від більших ⬇)</option>
+              <option value="points_asc">Поінти (від менших ⬆)</option>
+              <option value="efficiency_desc">% плану (найкращі ⬇)</option>
+              <option value="efficiency_asc">% плану (найнижчі ⬆)</option>
+              <option value="name_asc">Ім'я (А — Я)</option>
+              <option value="name_desc">Ім'я (Я — А)</option>
+              <option value="tasks_desc">Кількість задач (більше ⬇)</option>
+            </select>
+          </div>
+
           <div className="flex items-center gap-1 bg-[#e0e5ec] p-1 rounded-xl">
             <button
               type="button"
@@ -461,6 +532,41 @@ const Audit = () => {
                 }
 
                 return true;
+              });
+
+              // Apply sorting to displayed tasks
+              displayedTasks.sort((a, b) => {
+                let comp = 0;
+                if (taskSortField === 'completedAt') {
+                  const dateA = a.completedAt || '';
+                  const dateB = b.completedAt || '';
+                  comp = dateA.localeCompare(dateB);
+                } else if (taskSortField === 'points') {
+                  comp = (Number(a.points) || 0) - (Number(b.points) || 0);
+                } else if (taskSortField === 'bitrixId') {
+                  const idA = Number(String(a.bitrixId || a.externalId || '').replace(/\D/g, '')) || 0;
+                  const idB = Number(String(b.bitrixId || b.externalId || '').replace(/\D/g, '')) || 0;
+                  comp = idA - idB;
+                } else if (taskSortField === 'name') {
+                  comp = (a.name || '').localeCompare(b.name || '');
+                } else if (taskSortField === 'taskType') {
+                  const isRevA = (a.taskType || '').toLowerCase().includes('правк') || (a.name || '').toLowerCase().includes('правк') ? 1 : 0;
+                  const isRevB = (b.taskType || '').toLowerCase().includes('правк') || (b.name || '').toLowerCase().includes('правк') ? 1 : 0;
+                  comp = isRevA - isRevB;
+                } else if (taskSortField === 'spentTime') {
+                  const parseH = (t) => {
+                    if (!t) return 0;
+                    if (String(t).includes(':')) {
+                      const [h, m] = String(t).split(':');
+                      return (Number(h) || 0) * 60 + (Number(m) || 0);
+                    }
+                    return Number(t) || 0;
+                  };
+                  comp = parseH(a.spentTime) - parseH(b.spentTime);
+                } else if (taskSortField === 'itemsInfo') {
+                  comp = (a.itemsInfo || '').localeCompare(b.itemsInfo || '');
+                }
+                return taskSortOrder === 'asc' ? comp : -comp;
               });
 
               const totalTasksCount = stats.completedProjects?.length || 0;
@@ -622,15 +728,92 @@ const Audit = () => {
                         <div className="overflow-x-auto rounded-xl border border-gray-300/80 bg-white shadow-xs">
                           <table className="w-full text-left text-xs border-collapse">
                             <thead>
-                              <tr className="bg-gray-100/80 border-b border-gray-300 text-[10px] font-black uppercase text-gray-500 tracking-wider">
-                                <th className="py-2.5 px-3 w-12 text-center">№</th>
-                                <th className="py-2.5 px-3 w-28">ID Бітрікс</th>
-                                <th className="py-2.5 px-4">Назва задачі / проєкту</th>
-                                <th className="py-2.5 px-3 w-32 text-center">Дата закриття</th>
-                                <th className="py-2.5 px-3 w-24 text-center">Поінти</th>
-                                <th className="py-2.5 px-3 w-32">Тип / Категорія</th>
-                                <th className="py-2.5 px-3 w-32 text-center">Час (факт/план)</th>
-                                <th className="py-2.5 px-3 w-36">Вироби</th>
+                              <tr className="bg-gray-100/90 border-b border-gray-300 text-[10px] font-black uppercase text-gray-600 tracking-wider">
+                                <th className="py-2.5 px-3 w-12 text-center select-none">№</th>
+                                <th
+                                  onClick={() => handleTaskSort('bitrixId')}
+                                  className={`py-2.5 px-3 w-28 cursor-pointer select-none group transition-colors hover:bg-gray-200/90 ${
+                                    taskSortField === 'bitrixId' ? 'text-primary bg-primary/10' : ''
+                                  }`}
+                                  title="Натисніть для сортування за ID Бітрікса"
+                                >
+                                  <div className="flex items-center gap-1">
+                                    <span>ID Бітрікс</span>
+                                    {renderSortIndicator('bitrixId')}
+                                  </div>
+                                </th>
+                                <th
+                                  onClick={() => handleTaskSort('name')}
+                                  className={`py-2.5 px-4 cursor-pointer select-none group transition-colors hover:bg-gray-200/90 ${
+                                    taskSortField === 'name' ? 'text-primary bg-primary/10' : ''
+                                  }`}
+                                  title="Натисніть для сортування за назвою задачі"
+                                >
+                                  <div className="flex items-center gap-1">
+                                    <span>Назва задачі / проєкту</span>
+                                    {renderSortIndicator('name')}
+                                  </div>
+                                </th>
+                                <th
+                                  onClick={() => handleTaskSort('completedAt')}
+                                  className={`py-2.5 px-3 w-36 text-center cursor-pointer select-none group transition-colors hover:bg-gray-200/90 ${
+                                    taskSortField === 'completedAt' ? 'text-primary bg-primary/10' : ''
+                                  }`}
+                                  title="Натисніть для сортування за датою закриття"
+                                >
+                                  <div className="flex items-center justify-center gap-1">
+                                    <span>Дата закриття</span>
+                                    {renderSortIndicator('completedAt')}
+                                  </div>
+                                </th>
+                                <th
+                                  onClick={() => handleTaskSort('points')}
+                                  className={`py-2.5 px-3 w-24 text-center cursor-pointer select-none group transition-colors hover:bg-gray-200/90 ${
+                                    taskSortField === 'points' ? 'text-primary bg-primary/10' : ''
+                                  }`}
+                                  title="Натисніть для сортування за поінтами"
+                                >
+                                  <div className="flex items-center justify-center gap-1">
+                                    <span>Поінти</span>
+                                    {renderSortIndicator('points')}
+                                  </div>
+                                </th>
+                                <th
+                                  onClick={() => handleTaskSort('taskType')}
+                                  className={`py-2.5 px-3 w-32 cursor-pointer select-none group transition-colors hover:bg-gray-200/90 ${
+                                    taskSortField === 'taskType' ? 'text-primary bg-primary/10' : ''
+                                  }`}
+                                  title="Натисніть для сортування за типом (Нові / Правки)"
+                                >
+                                  <div className="flex items-center gap-1">
+                                    <span>Тип / Категорія</span>
+                                    {renderSortIndicator('taskType')}
+                                  </div>
+                                </th>
+                                <th
+                                  onClick={() => handleTaskSort('spentTime')}
+                                  className={`py-2.5 px-3 w-32 text-center cursor-pointer select-none group transition-colors hover:bg-gray-200/90 ${
+                                    taskSortField === 'spentTime' ? 'text-primary bg-primary/10' : ''
+                                  }`}
+                                  title="Натисніть для сортування за часом"
+                                >
+                                  <div className="flex items-center justify-center gap-1">
+                                    <span>Час (факт/план)</span>
+                                    {renderSortIndicator('spentTime')}
+                                  </div>
+                                </th>
+                                <th
+                                  onClick={() => handleTaskSort('itemsInfo')}
+                                  className={`py-2.5 px-3 w-36 cursor-pointer select-none group transition-colors hover:bg-gray-200/90 ${
+                                    taskSortField === 'itemsInfo' ? 'text-primary bg-primary/10' : ''
+                                  }`}
+                                  title="Натисніть для сортування за виробами"
+                                >
+                                  <div className="flex items-center gap-1">
+                                    <span>Вироби</span>
+                                    {renderSortIndicator('itemsInfo')}
+                                  </div>
+                                </th>
                               </tr>
                             </thead>
                             <tbody className="divide-y divide-gray-200">
