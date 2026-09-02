@@ -158,22 +158,39 @@ export const useLoadEngine = (projects, employees, absences = []) => {
   const calculateEfficiency = (employeeName, startDateParam = null, endDateParam = null) => {
     const { rangeStart, rangeEnd } = createDateRange(startDateParam, endDateParam);
 
-    const employeeProjects = projects.filter((p) => {
-      if (
-        p.status !== 'completed' ||
-        (p.assignedEmployee || '').trim().toLowerCase() !== (employeeName || '').trim().toLowerCase()
-      ) {
-        return false;
+    const employeeProjects = [];
+    const unmatchedProjects = [];
+
+    projects.forEach((p) => {
+      const assigned = (p.assignedEmployee || '').trim().toLowerCase();
+      if (assigned !== (employeeName || '').trim().toLowerCase()) return;
+
+      const isCompleted = p.status === 'completed' || (p.completedAt && p.completedAt !== '-');
+      if (!isCompleted) return;
+
+      if (!p.completedAt || p.completedAt === '-') {
+        unmatchedProjects.push({ ...p, unmatchReason: 'Відсутня дата закриття' });
+        return;
       }
 
-      if (!p.completedAt) return false;
       const completedDate = parseProjectDate(p.completedAt, { preferPast: true });
-      if (!completedDate) return false;
+      if (!completedDate) {
+        unmatchedProjects.push({ ...p, unmatchReason: 'Не вдалося розпізнати дату' });
+        return;
+      }
 
-      return completedDate >= rangeStart && completedDate <= rangeEnd;
+      if (completedDate >= rangeStart && completedDate <= rangeEnd) {
+        employeeProjects.push({ ...p, parsedCompletedDate: completedDate });
+      }
     });
 
-    const actualPoints = employeeProjects.reduce((sum, p) => sum + (p.points || 0), 0);
+    const sortedCompleted = [...employeeProjects].sort((a, b) => {
+      const dateA = a.completedAt || '';
+      const dateB = b.completedAt || '';
+      return dateB.localeCompare(dateA);
+    });
+
+    const actualPoints = sortedCompleted.reduce((sum, p) => sum + (p.points || 0), 0);
 
     let elapsedWorkingDays = 0;
     const cursor = new Date(rangeStart);
@@ -201,7 +218,7 @@ export const useLoadEngine = (projects, employees, absences = []) => {
       return Number(str) || 0;
     };
 
-    employeeProjects.forEach(p => {
+    sortedCompleted.forEach(p => {
       if (isRevision(p)) {
         totalRevisions++;
       } else {
@@ -231,6 +248,8 @@ export const useLoadEngine = (projects, employees, absences = []) => {
       totalPoints: actualPoints,
       targetPoints: expectedPoints,
       elapsedWorkingDays,
+      completedProjects: sortedCompleted,
+      unmatchedProjects,
       advanced: {
         revisions: totalRevisions,
         newTasks: totalNew,

@@ -331,3 +331,96 @@ export const parseBitrixText = (text) => {
 
   return projects;
 };
+
+/**
+ * Export full department salary audit report with summary & details to Excel
+ */
+export const exportSalaryAuditExcel = ({
+  departmentName,
+  startDate,
+  endDate,
+  auditData = []
+}) => {
+  const wb = XLSX.utils.book_new();
+
+  // Sheet 1: Summary by Employee
+  const summaryRows = auditData.map((item, idx) => ({
+    '№': idx + 1,
+    'Виконавець': item.employeeName,
+    'Виконано поінтів': item.stats.totalPoints,
+    'План поінтів': item.stats.targetPoints,
+    'Ефективність (%)': Math.round(item.stats.efficiency) + '%',
+    'Закрито задач': item.stats.completedProjects?.length || 0,
+    'Нових задач': item.stats.advanced?.newTasks || 0,
+    'Правок': item.stats.advanced?.revisions || 0,
+    'Факт годин': item.stats.advanced?.spentH || 0,
+    'План годин': item.stats.advanced?.plannedH || 0,
+    'Виробів (шт)': item.stats.advanced?.items || 0,
+    'Робочих днів у періоді': item.stats.elapsedWorkingDays || 0
+  }));
+
+  const wsSummary = XLSX.utils.json_to_sheet(summaryRows);
+  XLSX.utils.book_append_sheet(wb, wsSummary, 'Зведена ЗП');
+
+  // Sheet 2: All Tasks Details
+  const allTasksRows = [];
+  let taskCounter = 1;
+  auditData.forEach((item) => {
+    (item.stats.completedProjects || []).forEach((p) => {
+      allTasksRows.push({
+        '№': taskCounter++,
+        'Виконавець': item.employeeName,
+        'ID Бітрікс': p.bitrixId || p.externalId || '',
+        'Назва задачі': p.name || '',
+        'Дата закриття': p.completedAt || '',
+        'Поінти': p.points || 0,
+        'Категорія': p.taskType || (String(p.name || '').toLowerCase().includes('правк') ? 'Правки' : 'Нова розробка'),
+        'Напрямок': p.direction || 'Загальне',
+        'Витрачений час': p.spentTime || '',
+        'План час': p.plannedTime || '',
+        'Вироби': p.itemsInfo || '',
+        'Посилання Бітрікс': p.bitrixId ? `https://portal.viyar.ua/company/personal/user/1/tasks/task/view/${p.bitrixId}/` : ''
+      });
+    });
+  });
+
+  const wsTasks = XLSX.utils.json_to_sheet(allTasksRows);
+  XLSX.utils.book_append_sheet(wb, wsTasks, 'Детальні задачі');
+
+  const cleanDept = String(departmentName || 'Відділ').replace(/[\\/:*?"<>|]/g, '_');
+  const fileName = `Звіт_ЗП_${cleanDept}_${startDate}_${endDate}.xlsx`;
+  XLSX.writeFile(wb, fileName);
+};
+
+/**
+ * Export single employee completed tasks to Excel
+ */
+export const exportSingleEmployeeAuditExcel = ({
+  employeeName,
+  startDate,
+  endDate,
+  stats
+}) => {
+  const wb = XLSX.utils.book_new();
+
+  const tasksRows = (stats?.completedProjects || []).map((p, idx) => ({
+    '№': idx + 1,
+    'ID Бітрікс': p.bitrixId || p.externalId || '',
+    'Назва задачі': p.name || '',
+    'Дата закриття': p.completedAt || '',
+    'Поінти': p.points || 0,
+    'Категорія': p.taskType || (String(p.name || '').toLowerCase().includes('правк') ? 'Правки' : 'Нова розробка'),
+    'Напрямок': p.direction || 'Загальне',
+    'Витрачений час': p.spentTime || '',
+    'План час': p.plannedTime || '',
+    'Вироби': p.itemsInfo || '',
+    'Посилання Бітрікс': p.bitrixId ? `https://portal.viyar.ua/company/personal/user/1/tasks/task/view/${p.bitrixId}/` : ''
+  }));
+
+  const wsTasks = XLSX.utils.json_to_sheet(tasksRows);
+  XLSX.utils.book_append_sheet(wb, wsTasks, 'Задачі');
+
+  const cleanName = String(employeeName || 'Співробітник').replace(/[\\/:*?"<>|]/g, '_');
+  const fileName = `ЗП_${cleanName}_${startDate}_${endDate}.xlsx`;
+  XLSX.writeFile(wb, fileName);
+};

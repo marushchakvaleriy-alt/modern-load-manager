@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import CustomDatePicker from '../components/CustomDatePicker';
 import { collection, onSnapshot } from 'firebase/firestore';
 import {
@@ -9,11 +9,23 @@ import {
   GitPullRequest,
   Layers,
   TrendingUp,
+  ChevronDown,
+  ChevronUp,
+  Download,
+  ExternalLink,
+  Search,
+  AlertTriangle,
+  FileSpreadsheet,
+  Copy,
+  Check,
+  Filter,
+  Sparkles,
+  Users
 } from 'lucide-react';
 import { db } from '../lib/firebase';
 import { useLoadEngine } from '../hooks/useLoadEngine';
-
 import { useDepartment } from '../store/departmentContext';
+import { exportSalaryAuditExcel, exportSingleEmployeeAuditExcel } from '../lib/excelUtils';
 
 const getMonthStartValue = () => {
   const today = new Date();
@@ -30,13 +42,48 @@ const getTodayValue = () => {
   return `${year}-${month}-${day}`;
 };
 
+const getPrevMonthRange = () => {
+  const today = new Date();
+  const year = today.getFullYear();
+  const month = today.getMonth(); // 0-indexed, so today.getMonth() is previous month index
+  const start = new Date(year, month - 1, 1);
+  const end = new Date(year, month, 0);
+  const fmt = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  return { start: fmt(start), end: fmt(end) };
+};
+
+const getLast30DaysRange = () => {
+  const end = new Date();
+  const start = new Date();
+  start.setDate(end.getDate() - 30);
+  const fmt = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  return { start: fmt(start), end: fmt(end) };
+};
+
+const formatDateUA = (dateStr) => {
+  if (!dateStr || dateStr === '-') return '—';
+  const parts = String(dateStr).split(' ')[0].split(/[-.]/);
+  if (parts.length === 3) {
+    if (parts[0].length === 4) {
+      return `${parts[2]}.${parts[1]}.${parts[0]}`;
+    }
+    return `${parts[0]}.${parts[1]}.${parts[2]}`;
+  }
+  return dateStr;
+};
+
 const Audit = () => {
   const [projects, setProjects] = useState([]);
   const [employees, setEmployees] = useState([]);
   const [startDate, setStartDate] = useState(getMonthStartValue);
   const [endDate, setEndDate] = useState(getTodayValue);
+  const [expandedEmployees, setExpandedEmployees] = useState(new Set());
+  const [taskSearchQuery, setTaskSearchQuery] = useState('');
+  const [filterEmployeeName, setFilterEmployeeName] = useState('all');
+  const [copiedId, setCopiedId] = useState(null);
+  const [taskTypeFilter, setTaskTypeFilter] = useState('all'); // 'all', 'new', 'revisions'
 
-  const { filterByDepartment, auditTabLabel, employeeSingleTitle } = useDepartment();
+  const { filterByDepartment, auditTabLabel, employeeSingleTitle, departmentLabel } = useDepartment();
   const deptProjects = filterByDepartment(projects);
   const deptEmployees = filterByDepartment(employees);
 
@@ -56,161 +103,665 @@ const Audit = () => {
     };
   }, []);
 
+  // Compute stats for all department employees
+  const auditData = useMemo(() => {
+    return deptEmployees
+      .filter((emp) => !emp.isIgnored)
+      .map((emp) => {
+        const stats = calculateEfficiency(emp.name, startDate, endDate);
+        return {
+          employee: emp,
+          employeeName: emp.name,
+          stats
+        };
+      })
+      .sort((a, b) => b.stats.totalPoints - a.stats.totalPoints);
+  }, [deptEmployees, calculateEfficiency, startDate, endDate]);
+
+  // Overall Department Totals for Selected Period
+  const departmentTotals = useMemo(() => {
+    let totalPoints = 0;
+    let targetPoints = 0;
+    let totalCompletedTasks = 0;
+    let totalNew = 0;
+    let totalRevisions = 0;
+    let totalSpentH = 0;
+    let totalPlannedH = 0;
+    let totalItems = 0;
+
+    auditData.forEach(({ stats }) => {
+      totalPoints += stats.totalPoints || 0;
+      targetPoints += stats.targetPoints || 0;
+      totalCompletedTasks += stats.completedProjects?.length || 0;
+      totalNew += stats.advanced?.newTasks || 0;
+      totalRevisions += stats.advanced?.revisions || 0;
+      totalSpentH += stats.advanced?.spentH || 0;
+      totalPlannedH += stats.advanced?.plannedH || 0;
+      totalItems += stats.advanced?.items || 0;
+    });
+
+    const efficiency = targetPoints > 0 ? Math.round((totalPoints / targetPoints) * 100) : 0;
+
+    return {
+      totalPoints,
+      targetPoints,
+      efficiency,
+      totalCompletedTasks,
+      totalNew,
+      totalRevisions,
+      totalSpentH,
+      totalPlannedH,
+      totalItems,
+      activeEmployeesCount: auditData.length
+    };
+  }, [auditData]);
+
+  // Toggle Accordion
+  const toggleEmployee = (empId) => {
+    setExpandedEmployees((prev) => {
+      const next = new Set(prev);
+      if (next.has(empId)) next.delete(empId);
+      else next.add(empId);
+      return next;
+    });
+  };
+
+  const expandAll = () => {
+    setExpandedEmployees(new Set(deptEmployees.map((e) => e.id)));
+  };
+
+  const collapseAll = () => {
+    setExpandedEmployees(new Set());
+  };
+
+  const copyToClipboard = (text, id) => {
+    if (!text) return;
+    navigator.clipboard?.writeText(String(text));
+    setCopiedId(id);
+    setTimeout(() => setCopiedId(null), 1500);
+  };
+
+  const handleExportFullExcel = () => {
+    exportSalaryAuditExcel({
+      departmentName: departmentLabel,
+      startDate,
+      endDate,
+      auditData
+    });
+  };
+
+  const handleExportSingle = (employeeName, stats) => {
+    exportSingleEmployeeAuditExcel({
+      employeeName,
+      startDate,
+      endDate,
+      stats
+    });
+  };
+
   return (
     <div className="space-y-8">
-      <header className="mb-10 space-y-6">
-        <div>
-          <h2 className="text-4xl font-bold tracking-tight text-gray-700">
-            {auditTabLabel}
-          </h2>
-          <p className="mt-2 text-lg text-gray-500 font-medium">
-            Поточний прогрес за вибраний період відносно плану
-          </p>
+      {/* Header with Title & Date Range Controls */}
+      <header className="space-y-6">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div>
+            <h2 className="text-3xl font-extrabold tracking-tight text-gray-800 flex items-center gap-3">
+              <Award className="text-primary" size={32} />
+              {auditTabLabel} (Звіт заробітної плати)
+            </h2>
+            <p className="mt-1 text-sm text-gray-500 font-medium">
+              Звірка закритих задач, поінтів та відпрацьованого часу за період для відділу {departmentLabel}
+            </p>
+          </div>
+
+          {/* Action Buttons */}
+          <div className="flex flex-wrap items-center gap-3">
+            <button
+              type="button"
+              onClick={handleExportFullExcel}
+              className="neu-btn px-4 py-2.5 rounded-xl text-xs font-black text-emerald-700 bg-emerald-50 hover:bg-emerald-100 flex items-center gap-2 border border-emerald-300 shadow-sm transition-all"
+              title="Завантажити повний звіт закритих задач по всьому відділу в Excel"
+            >
+              <FileSpreadsheet size={16} className="text-emerald-600" />
+              <span>Експорт ЗП відділу (Excel)</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={expandedEmployees.size > 0 ? collapseAll : expandAll}
+              className="neu-flat px-4 py-2.5 rounded-xl text-xs font-bold text-gray-700 hover:text-primary transition-all flex items-center gap-2"
+            >
+              {expandedEmployees.size > 0 ? (
+                <>
+                  <ChevronUp size={15} />
+                  <span>Згорнути всі</span>
+                </>
+              ) : (
+                <>
+                  <ChevronDown size={15} />
+                  <span>Розгорнути всі</span>
+                </>
+              )}
+            </button>
+          </div>
         </div>
 
-        <div className="neu-pressed flex flex-wrap items-center gap-6 p-4 rounded-2xl">
-          <div className="flex items-center gap-3">
-            <span className="text-xs font-bold uppercase tracking-widest text-gray-500">Дата з:</span>
-            <CustomDatePicker
-              value={startDate}
-              max={endDate}
-              onChange={setStartDate}
+        {/* Date Selection & Preset Buttons Bar */}
+        <div className="neu-flat p-4 rounded-2xl flex flex-wrap items-center justify-between gap-4 border border-white/60 shadow-sm">
+          {/* Custom Date Pickers */}
+          <div className="flex flex-wrap items-center gap-4">
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-extrabold uppercase tracking-wider text-gray-500">Дата з:</span>
+              <CustomDatePicker value={startDate} max={endDate} onChange={setStartDate} />
+            </div>
+
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-extrabold uppercase tracking-wider text-gray-500">Дата до:</span>
+              <CustomDatePicker value={endDate} min={startDate} onChange={setEndDate} />
+            </div>
+          </div>
+
+          {/* Quick Presets */}
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-[11px] font-extrabold uppercase text-gray-400 mr-1 hidden sm:inline">Період:</span>
+            <button
+              type="button"
+              onClick={() => {
+                setStartDate(getMonthStartValue());
+                setEndDate(getTodayValue());
+              }}
+              className="px-3 py-1.5 rounded-xl text-xs font-bold bg-white text-gray-700 hover:text-primary shadow-xs border border-gray-200 transition-all"
+            >
+              Поточний місяць
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                const prev = getPrevMonthRange();
+                setStartDate(prev.start);
+                setEndDate(prev.end);
+              }}
+              className="px-3 py-1.5 rounded-xl text-xs font-bold bg-white text-gray-700 hover:text-primary shadow-xs border border-gray-200 transition-all"
+            >
+              Попередній місяць
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                const l30 = getLast30DaysRange();
+                setStartDate(l30.start);
+                setEndDate(l30.end);
+              }}
+              className="px-3 py-1.5 rounded-xl text-xs font-bold bg-white text-gray-700 hover:text-primary shadow-xs border border-gray-200 transition-all"
+            >
+              Останні 30 днів
+            </button>
+          </div>
+        </div>
+
+        {/* Search & Filter Bar */}
+        <div className="neu-flat p-3 rounded-2xl flex flex-wrap items-center gap-3 border border-white/60">
+          <div className="flex-1 min-w-[240px] relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
+            <input
+              type="text"
+              placeholder="Пошук задачі за назвою або #ID Бітрікса серед усіх закритих..."
+              value={taskSearchQuery}
+              onChange={(e) => setTaskSearchQuery(e.target.value)}
+              className="w-full pl-9 pr-4 py-2 bg-[#e0e5ec] rounded-xl text-xs font-bold text-gray-800 outline-none placeholder:text-gray-400"
             />
           </div>
 
-          <div className="flex items-center gap-3">
-            <span className="text-xs font-bold uppercase tracking-widest text-gray-500">Дата до:</span>
-            <CustomDatePicker
-              value={endDate}
-              min={startDate}
-              onChange={setEndDate}
-            />
+          <div className="w-48">
+            <select
+              value={filterEmployeeName}
+              onChange={(e) => setFilterEmployeeName(e.target.value)}
+              className="w-full px-3 py-2 bg-[#e0e5ec] rounded-xl text-xs font-bold text-gray-700 outline-none cursor-pointer"
+            >
+              <option value="all">Усі співробітники ({auditData.length})</option>
+              {auditData.map((a) => (
+                <option key={a.employee.id} value={a.employeeName}>
+                  {a.employeeName}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div className="flex items-center gap-1 bg-[#e0e5ec] p-1 rounded-xl">
+            <button
+              type="button"
+              onClick={() => setTaskTypeFilter('all')}
+              className={`px-3 py-1 rounded-lg text-xs font-bold transition-all ${
+                taskTypeFilter === 'all' ? 'bg-white text-primary shadow-xs' : 'text-gray-600 hover:text-gray-900'
+              }`}
+            >
+              Всі типи
+            </button>
+            <button
+              type="button"
+              onClick={() => setTaskTypeFilter('new')}
+              className={`px-3 py-1 rounded-lg text-xs font-bold transition-all ${
+                taskTypeFilter === 'new' ? 'bg-white text-emerald-700 shadow-xs' : 'text-gray-600 hover:text-gray-900'
+              }`}
+            >
+              Тільки нові
+            </button>
+            <button
+              type="button"
+              onClick={() => setTaskTypeFilter('revisions')}
+              className={`px-3 py-1 rounded-lg text-xs font-bold transition-all ${
+                taskTypeFilter === 'revisions' ? 'bg-white text-amber-700 shadow-xs' : 'text-gray-600 hover:text-gray-900'
+              }`}
+            >
+              Тільки правки
+            </button>
+          </div>
+        </div>
+
+        {/* Global KPI Summary Strip for Department */}
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+          <div className="neu-flat p-3.5 rounded-2xl border border-white/60 bg-white/40">
+            <p className="text-[10px] font-extrabold uppercase tracking-wider text-gray-500 flex items-center gap-1.5">
+              <TrendingUp size={13} className="text-primary" />
+              Виконано поінтів
+            </p>
+            <p className="text-2xl font-black text-gray-800 mt-1">
+              {departmentTotals.totalPoints}
+              <span className="text-xs font-normal text-gray-500 ml-1">/ {departmentTotals.targetPoints}п</span>
+            </p>
+          </div>
+
+          <div className="neu-flat p-3.5 rounded-2xl border border-white/60 bg-white/40">
+            <p className="text-[10px] font-extrabold uppercase tracking-wider text-gray-500 flex items-center gap-1.5">
+              <CheckCircle2 size={13} className="text-emerald-500" />
+              Прогрес плану
+            </p>
+            <p className={`text-2xl font-black mt-1 ${departmentTotals.efficiency >= 100 ? 'text-emerald-600' : 'text-blue-600'}`}>
+              {departmentTotals.efficiency}%
+            </p>
+          </div>
+
+          <div className="neu-flat p-3.5 rounded-2xl border border-white/60 bg-white/40">
+            <p className="text-[10px] font-extrabold uppercase tracking-wider text-gray-500 flex items-center gap-1.5">
+              <GitPullRequest size={13} className="text-indigo-500" />
+              Закрито задач
+            </p>
+            <p className="text-2xl font-black text-gray-800 mt-1">
+              {departmentTotals.totalCompletedTasks}
+              <span className="text-xs font-normal text-gray-500 ml-1">
+                ({departmentTotals.totalNew}н / {departmentTotals.totalRevisions}пр)
+              </span>
+            </p>
+          </div>
+
+          <div className="neu-flat p-3.5 rounded-2xl border border-white/60 bg-white/40">
+            <p className="text-[10px] font-extrabold uppercase tracking-wider text-gray-500 flex items-center gap-1.5">
+              <Clock3 size={13} className="text-amber-500" />
+              Витрачено часу
+            </p>
+            <p className="text-2xl font-black text-gray-800 mt-1">
+              {departmentTotals.totalSpentH}
+              <span className="text-xs font-normal text-gray-500 ml-1">год (план {departmentTotals.totalPlannedH})</span>
+            </p>
+          </div>
+
+          <div className="neu-flat p-3.5 rounded-2xl border border-white/60 bg-white/40">
+            <p className="text-[10px] font-extrabold uppercase tracking-wider text-gray-500 flex items-center gap-1.5">
+              <Layers size={13} className="text-purple-500" />
+              Виробів
+            </p>
+            <p className="text-2xl font-black text-purple-700 mt-1">{departmentTotals.totalItems} шт</p>
+          </div>
+
+          <div className="neu-flat p-3.5 rounded-2xl border border-white/60 bg-white/40">
+            <p className="text-[10px] font-extrabold uppercase tracking-wider text-gray-500 flex items-center gap-1.5">
+              <Users size={13} className="text-gray-500" />
+              Працівників
+            </p>
+            <p className="text-2xl font-black text-gray-800 mt-1">{departmentTotals.activeEmployeesCount}</p>
           </div>
         </div>
       </header>
 
-      <div className="grid grid-cols-1 gap-6">
-        {deptEmployees.length === 0 && (
-          <div className="glass-card p-20 text-center">
-            <Award className="mx-auto mb-4 text-white/5" size={64} />
-            <p className="text-lg text-secondary">Немає даних про виконавців для аудиту.</p>
+      {/* Main Employee Cards List with Expandable Task Tables */}
+      <div className="space-y-5">
+        {auditData.length === 0 ? (
+          <div className="neu-flat p-16 text-center rounded-2xl border border-white/60">
+            <Award className="mx-auto mb-4 text-gray-300" size={56} />
+            <p className="text-base text-gray-500 font-medium">Немає даних про виконавців для аудиту у вибраному періоді.</p>
           </div>
+        ) : (
+          auditData
+            .filter((item) => filterEmployeeName === 'all' || item.employeeName === filterEmployeeName)
+            .map(({ employee, employeeName, stats }) => {
+              const isExpanded = expandedEmployees.has(employee.id);
+              const progress = Math.round(stats.efficiency);
+              const progressBarWidth = Math.min(progress, 100);
+              const progressTone =
+                progress >= 100 ? 'text-emerald-600 font-black' : progress >= 80 ? 'text-blue-600 font-black' : 'text-amber-600 font-black';
+              const progressBarColor = progress >= 100 ? 'bg-emerald-500' : progress >= 80 ? 'bg-blue-500' : 'bg-amber-500';
+
+              // Filter tasks inside this employee by search or type
+              const displayedTasks = (stats.completedProjects || []).filter((task) => {
+                if (taskSearchQuery) {
+                  const q = taskSearchQuery.toLowerCase();
+                  const nameMatch = (task.name || '').toLowerCase().includes(q);
+                  const idMatch = String(task.bitrixId || task.externalId || '').includes(q);
+                  if (!nameMatch && !idMatch) return false;
+                }
+
+                if (taskTypeFilter === 'new') {
+                  const isRev = (task.taskType || '').toLowerCase().includes('правк') || (task.name || '').toLowerCase().includes('правк');
+                  if (isRev) return false;
+                } else if (taskTypeFilter === 'revisions') {
+                  const isRev = (task.taskType || '').toLowerCase().includes('правк') || (task.name || '').toLowerCase().includes('правк');
+                  if (!isRev) return false;
+                }
+
+                return true;
+              });
+
+              const totalTasksCount = stats.completedProjects?.length || 0;
+              const hasUnmatched = stats.unmatchedProjects && stats.unmatchedProjects.length > 0;
+
+              return (
+                <div
+                  key={employee.id}
+                  className="neu-flat rounded-2xl border border-white/60 bg-[#e0e5ec] overflow-hidden shadow-sm transition-all hover:shadow-md"
+                >
+                  {/* Employee Summary Card Header */}
+                  <div className="p-5 flex flex-col lg:flex-row lg:items-center justify-between gap-6">
+                    {/* Left: Avatar & Employee Info */}
+                    <div className="flex items-center gap-4 min-w-[260px]">
+                      <div className="w-14 h-14 rounded-2xl neu-flat flex items-center justify-center text-xl font-black text-primary bg-white/70 shadow-sm shrink-0">
+                        {employeeName.split(' ').map((n) => n[0]).join('').slice(0, 2)}
+                      </div>
+                      <div>
+                        <h3 className="text-lg font-black text-gray-800 leading-snug">{employeeName}</h3>
+                        <p className="text-xs font-semibold text-gray-500 mt-0.5">
+                          {employeeSingleTitle} · {stats.elapsedWorkingDays} роб. дн. у періоді
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Middle: KPI Metrics Grid */}
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 flex-1">
+                      {/* Points */}
+                      <div>
+                        <span className="text-[10px] font-extrabold uppercase text-gray-500 flex items-center gap-1">
+                          <TrendingUp size={11} className="text-primary" />
+                          Виконано / План
+                        </span>
+                        <p className="text-lg font-black text-gray-800 mt-0.5">
+                          {stats.totalPoints}п <span className="text-xs font-normal text-gray-500">/ {stats.targetPoints}п</span>
+                        </p>
+                        <p className={`text-xs ${progressTone}`}>{progress}% виконання</p>
+                      </div>
+
+                      {/* Tasks */}
+                      <div>
+                        <span className="text-[10px] font-extrabold uppercase text-gray-500 flex items-center gap-1">
+                          <CheckCircle2 size={11} className="text-emerald-500" />
+                          Закрито задач
+                        </span>
+                        <p className="text-lg font-black text-gray-800 mt-0.5">
+                          {totalTasksCount} <span className="text-xs font-normal text-gray-500">шт</span>
+                        </p>
+                        <p className="text-[11px] font-medium text-gray-500">
+                          {stats.advanced.newTasks}н · {stats.advanced.revisions}пр
+                        </p>
+                      </div>
+
+                      {/* Hours */}
+                      <div>
+                        <span className="text-[10px] font-extrabold uppercase text-gray-500 flex items-center gap-1">
+                          <Clock3 size={11} className="text-indigo-500" />
+                          Час факт / план
+                        </span>
+                        <p className="text-lg font-black text-gray-800 mt-0.5">
+                          {stats.advanced.spentH} <span className="text-xs font-normal text-gray-500">/ {stats.advanced.plannedH} год</span>
+                        </p>
+                        <p className="text-[11px] font-medium text-gray-500">
+                          {stats.advanced.items} виробів
+                        </p>
+                      </div>
+
+                      {/* Progress Bar Visual */}
+                      <div className="flex flex-col justify-center">
+                        <div className="flex justify-between text-[10px] font-extrabold uppercase text-gray-500 mb-1">
+                          <span>Прогрес</span>
+                          <span>{progress}%</span>
+                        </div>
+                        <div className="h-2.5 w-full bg-gray-300/60 rounded-full overflow-hidden shadow-inner">
+                          <div
+                            className={`h-full rounded-full transition-all duration-500 ${progressBarColor}`}
+                            style={{ width: `${progressBarWidth}%` }}
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Right: Actions */}
+                    <div className="flex items-center gap-2 shrink-0">
+                      <button
+                        type="button"
+                        onClick={() => handleExportSingle(employeeName, stats)}
+                        className="px-3 py-2 rounded-xl text-xs font-bold text-gray-700 hover:text-primary bg-white shadow-xs border border-gray-200 transition-all flex items-center gap-1.5"
+                        title="Експортувати список закритих задач співробітника в Excel"
+                      >
+                        <Download size={13} />
+                        <span className="hidden sm:inline">Excel</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => toggleEmployee(employee.id)}
+                        className={`px-4 py-2 rounded-xl text-xs font-extrabold flex items-center gap-1.5 transition-all ${
+                          isExpanded
+                            ? 'bg-primary text-white shadow-md'
+                            : 'bg-primary/10 text-primary hover:bg-primary/20'
+                        }`}
+                      >
+                        <span>Задачі ({totalTasksCount})</span>
+                        {isExpanded ? <ChevronUp size={15} /> : <ChevronDown size={15} />}
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Expanded Accordion: Detailed Task List for Bitrix Reconciliation */}
+                  {isExpanded && (
+                    <div className="border-t border-gray-300/80 bg-white/60 p-5 space-y-4 animate-in fade-in duration-200">
+                      {/* Diagnostic Alert if Unmatched Tasks Exist */}
+                      {hasUnmatched && (
+                        <div className="p-3.5 rounded-xl bg-amber-50 border border-amber-300 text-amber-900 text-xs flex items-start gap-3">
+                          <AlertTriangle className="text-amber-600 shrink-0 mt-0.5" size={16} />
+                          <div>
+                            <p className="font-extrabold">
+                              Знайдено {stats.unmatchedProjects.length} задач цього виконавця без дати закриття чи з іншим статусом:
+                            </p>
+                            <p className="text-[11px] text-amber-800 mt-0.5">
+                              Якщо в Бітріксі поінти вищі, можливо ці задачі завершено в Бітрікс, але в них не заповнено колонку дати завершення:
+                            </p>
+                            <div className="mt-2 space-y-1">
+                              {stats.unmatchedProjects.map((u, uIdx) => (
+                                <div key={uIdx} className="font-mono text-[11px] flex items-center gap-2">
+                                  <span className="font-bold text-amber-700">#{u.bitrixId || 'без ID'}:</span>
+                                  <span>{u.name}</span>
+                                  <span className="text-gray-500 font-normal">({u.points || 0}п, причина: {u.unmatchReason})</span>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Header bar inside details: Count and quick search match */}
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs font-black uppercase text-gray-700 tracking-wider">
+                            Список закритих задач за вибраний період:
+                          </span>
+                          <span className="text-xs font-bold text-primary bg-primary/10 px-2 py-0.5 rounded-md">
+                            {displayedTasks.length} {displayedTasks.length === 1 ? 'задача' : 'задач'}
+                          </span>
+                        </div>
+
+                        <span className="text-xs font-mono font-bold text-gray-500">
+                          Сума поінтів: <span className="text-primary font-black">{displayedTasks.reduce((s, t) => s + (t.points || 0), 0)}п</span>
+                        </span>
+                      </div>
+
+                      {/* Tasks Table */}
+                      {displayedTasks.length === 0 ? (
+                        <div className="p-8 text-center rounded-xl bg-[#e0e5ec]/40 border border-dashed border-gray-300 text-gray-500 text-xs">
+                          Не знайдено закритих задач, що відповідають умовам пошуку.
+                        </div>
+                      ) : (
+                        <div className="overflow-x-auto rounded-xl border border-gray-300/80 bg-white shadow-xs">
+                          <table className="w-full text-left text-xs border-collapse">
+                            <thead>
+                              <tr className="bg-gray-100/80 border-b border-gray-300 text-[10px] font-black uppercase text-gray-500 tracking-wider">
+                                <th className="py-2.5 px-3 w-12 text-center">№</th>
+                                <th className="py-2.5 px-3 w-28">ID Бітрікс</th>
+                                <th className="py-2.5 px-4">Назва задачі / проєкту</th>
+                                <th className="py-2.5 px-3 w-32 text-center">Дата закриття</th>
+                                <th className="py-2.5 px-3 w-24 text-center">Поінти</th>
+                                <th className="py-2.5 px-3 w-32">Тип / Категорія</th>
+                                <th className="py-2.5 px-3 w-32 text-center">Час (факт/план)</th>
+                                <th className="py-2.5 px-3 w-36">Вироби</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-gray-200">
+                              {displayedTasks.map((task, tIdx) => {
+                                const isRev =
+                                  (task.taskType || '').toLowerCase().includes('правк') ||
+                                  (task.name || '').toLowerCase().includes('правк');
+                                const bitrixIdClean = String(task.bitrixId || task.externalId || '').replace(/^btx-/, '').trim();
+                                const isRealBitrixId = /^\d+$/.test(bitrixIdClean);
+
+                                return (
+                                  <tr key={task.id || tIdx} className="hover:bg-blue-50/50 transition-colors">
+                                    <td className="py-2 px-3 text-center text-gray-400 font-mono text-[11px]">
+                                      {tIdx + 1}
+                                    </td>
+
+                                    {/* Bitrix ID with Link and Copy */}
+                                    <td className="py-2 px-3 whitespace-nowrap">
+                                      {isRealBitrixId ? (
+                                        <div className="inline-flex items-center gap-1">
+                                          <a
+                                            href={`https://portal.viyar.ua/company/personal/user/1/tasks/task/view/${bitrixIdClean}/`}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            className="font-mono font-black text-blue-600 hover:text-blue-800 hover:underline flex items-center gap-0.5"
+                                            title="Відкрити цю задачу в Бітрікс24"
+                                          >
+                                            <span>#{bitrixIdClean}</span>
+                                            <ExternalLink size={10} className="text-blue-400" />
+                                          </a>
+                                          <button
+                                            type="button"
+                                            onClick={() => copyToClipboard(bitrixIdClean, `id-${task.id}`)}
+                                            className="p-1 text-gray-400 hover:text-gray-700 rounded"
+                                            title="Скопіювати ID"
+                                          >
+                                            {copiedId === `id-${task.id}` ? (
+                                              <Check size={11} className="text-emerald-600" />
+                                            ) : (
+                                              <Copy size={11} />
+                                            )}
+                                          </button>
+                                        </div>
+                                      ) : (
+                                        <span className="font-mono text-gray-400 text-[10px]">
+                                          {task.bitrixId ? `#${task.bitrixId}` : '—'}
+                                        </span>
+                                      )}
+                                    </td>
+
+                                    {/* Task Name & Direction */}
+                                    <td className="py-2 px-4">
+                                      <div className="font-bold text-gray-800 leading-snug">
+                                        {task.name}
+                                      </div>
+                                      {task.direction && task.direction !== 'Загальне' && (
+                                        <div className="text-[10px] font-medium text-gray-500 mt-0.5">
+                                          Напрямок: <span className="font-semibold text-gray-700">{task.direction}</span>
+                                        </div>
+                                      )}
+                                    </td>
+
+                                    {/* Completed Date */}
+                                    <td className="py-2 px-3 text-center whitespace-nowrap">
+                                      <span className="font-mono font-bold text-gray-700 text-xs">
+                                        {formatDateUA(task.completedAt)}
+                                      </span>
+                                    </td>
+
+                                    {/* Points */}
+                                    <td className="py-2 px-3 text-center whitespace-nowrap">
+                                      <span className="inline-block px-2 py-0.5 rounded-lg bg-blue-100 text-blue-800 font-black font-mono text-xs border border-blue-200">
+                                        {task.points || 0}п
+                                      </span>
+                                    </td>
+
+                                    {/* Task Category / Type */}
+                                    <td className="py-2 px-3 whitespace-nowrap">
+                                      <span
+                                        className={`inline-block px-2 py-0.5 rounded-md text-[10px] font-black border ${
+                                          isRev
+                                            ? 'bg-amber-50 text-amber-700 border-amber-200'
+                                            : 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                                        }`}
+                                      >
+                                        {isRev ? 'Правка' : 'Нова розробка'}
+                                      </span>
+                                    </td>
+
+                                    {/* Spent vs Planned Time */}
+                                    <td className="py-2 px-3 text-center whitespace-nowrap font-mono text-xs text-gray-600">
+                                      <span className="font-bold text-gray-800">{task.spentTime || '0'}</span>
+                                      <span className="text-gray-400 font-normal"> / {task.plannedTime || '0'}</span>
+                                    </td>
+
+                                    {/* Items Info */}
+                                    <td className="py-2 px-3 text-gray-600 truncate max-w-[180px]" title={task.itemsInfo || ''}>
+                                      {task.itemsInfo || '—'}
+                                    </td>
+                                  </tr>
+                                );
+                              })}
+                            </tbody>
+                            <tfoot>
+                              <tr className="bg-gray-100 font-black text-gray-800 border-t-2 border-gray-300">
+                                <td colSpan={4} className="py-2.5 px-4 text-right uppercase text-[10px] tracking-wider text-gray-600">
+                                  Разом по співробітнику:
+                                </td>
+                                <td className="py-2.5 px-3 text-center text-primary text-sm font-mono font-black">
+                                  {displayedTasks.reduce((s, t) => s + (t.points || 0), 0)}п
+                                </td>
+                                <td className="py-2.5 px-3 text-[11px] text-gray-600 font-normal">
+                                  {displayedTasks.length} задач
+                                </td>
+                                <td className="py-2.5 px-3 text-center text-xs font-mono text-gray-700">
+                                  {stats.advanced.spentH} год
+                                </td>
+                                <td className="py-2.5 px-3 text-xs text-gray-600">
+                                  {stats.advanced.items} виробів
+                                </td>
+                              </tr>
+                            </tfoot>
+                          </table>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              );
+            })
         )}
-
-        {deptEmployees.map((employee) => {
-          const stats = calculateEfficiency(employee.name, startDate, endDate);
-          const progress = Math.round(stats.efficiency);
-          const progressBarWidth = Math.min(progress, 100);
-          const progressTone = progress >= 100 ? 'text-success' : 'text-accent';
-          const progressBarTone = progress >= 100 ? 'bg-success' : 'bg-primary';
-
-          return (
-            <div
-              key={employee.id}
-              className="glass-card group flex flex-col items-center gap-10 p-8 transition-colors hover:border-primary/30 lg:flex-row"
-            >
-              <div className="flex w-full flex-1 items-center gap-6">
-                <div className="flex h-20 w-20 items-center justify-center rounded-[2rem] bg-gradient-to-br from-primary/30 to-primary/10 text-3xl font-bold text-primary shadow-inner shadow-white/5">
-                  {employee.name?.charAt(0)}
-                </div>
-                <div>
-                  <h3 className="text-2xl font-bold tracking-tight">{employee.name}</h3>
-                  <div className="mt-1 flex items-center gap-2">
-                    <span className="h-2 w-2 animate-pulse rounded-full bg-success"></span>
-                    <p className="text-sm font-medium text-secondary">{employeeSingleTitle} відділу</p>
-                  </div>
-                </div>
-              </div>
-
-              <div className="grid w-full flex-[2] grid-cols-2 gap-y-8 gap-x-6 border-l border-white/5 pl-10 md:grid-cols-3 lg:gap-x-8">
-                <div className="space-y-2">
-                  <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.2em] text-secondary">
-                    <TrendingUp size={12} className="text-primary" />
-                    <span>Виконано за період</span>
-                  </div>
-                  <p className="text-3xl font-bold tracking-tight">
-                    {stats.totalPoints}{' '}
-                    <span className="text-sm font-normal italic text-secondary">/ {stats.targetPoints}</span>
-                  </p>
-                </div>
-
-                <div className="space-y-2">
-                  <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.2em] text-secondary">
-                    <CheckCircle2 size={12} className="text-accent" />
-                    <span>Прогрес плану</span>
-                  </div>
-                  <p className={`text-3xl font-bold tracking-tight ${progressTone}`}>{progress}%</p>
-                </div>
-
-                <div className="space-y-2">
-                  <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.2em] text-secondary">
-                    <CalendarDays size={12} className="text-secondary" />
-                    <span>План за період</span>
-                  </div>
-                  <p className="text-3xl font-bold tracking-tight">
-                    {stats.targetPoints}{' '}
-                    <span className="text-sm font-normal italic text-secondary">
-                      ({stats.elapsedWorkingDays} роб. дн.)
-                    </span>
-                  </p>
-                </div>
-
-                <div className="space-y-2">
-                  <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.2em] text-secondary">
-                    <Clock3 size={12} className="text-indigo-400" />
-                    <span>Час (факт / план)</span>
-                  </div>
-                  <p className="text-2xl font-bold tracking-tight">
-                    {stats.advanced.spentH}{' '}
-                    <span className="text-xs font-normal italic text-secondary">
-                      год / {stats.advanced.plannedH} год
-                    </span>
-                  </p>
-                </div>
-
-                <div className="space-y-2">
-                  <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.2em] text-secondary">
-                    <GitPullRequest size={12} className="text-amber-400" />
-                    <span>Задачі (правки / нові)</span>
-                  </div>
-                  <p className="text-2xl font-bold tracking-tight">
-                    {stats.advanced.revisions}{' '}
-                    <span className="text-xs font-normal italic text-secondary">
-                      / {stats.advanced.newTasks} шт
-                    </span>
-                  </p>
-                </div>
-
-                <div className="space-y-2">
-                  <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.2em] text-secondary">
-                    <Layers size={12} className="text-emerald-400" />
-                    <span>Вироби</span>
-                  </div>
-                  <p className="text-2xl font-bold tracking-tight">
-                    {stats.advanced.items}{' '}
-                    <span className="text-xs font-normal italic text-secondary">шт</span>
-                  </p>
-                </div>
-              </div>
-
-              <div className="w-full lg:w-64">
-                <div className="mb-2 flex justify-between text-[10px] font-bold uppercase tracking-widest text-secondary">
-                  <span>Статус</span>
-                  <span>{progress}%</span>
-                </div>
-                <div className="h-3 w-full overflow-hidden rounded-full bg-white/5 shadow-inner">
-                  <div
-                    className={`h-full transition-all duration-1000 ease-out shadow-[0_0_15px_rgba(61,90,254,0.3)] ${progressBarTone}`}
-                    style={{ width: `${progressBarWidth}%` }}
-                  />
-                </div>
-                <p className="mt-3 text-xs text-secondary">
-                  Норма дня: {CAPACITY_PER_DAY} поінти. Тут показано прогрес за вибраний період.
-                </p>
-              </div>
-            </div>
-          );
-        })}
       </div>
     </div>
   );
