@@ -88,10 +88,10 @@ export const processBitrixExcel = (file) => {
             }
 
             // Bitrix columns mapping
-            let points = 1;
-            const explicitPoints = robustGet(row, ['Point', 'Поинты', 'Поінти', 'Поінт', 'Оценка', 'Score']);
+            let points = 0;
+            const explicitPoints = robustGet(row, ['Point', 'Поинты', 'Поінти', 'Поінт', 'Score']);
             
-            if (explicitPoints !== undefined && explicitPoints !== '') {
+            if (explicitPoints !== undefined && explicitPoints !== '' && !Number.isNaN(Number(explicitPoints))) {
               points = Number(explicitPoints);
             } else if (robustGet(row, ['Планируемые трудозатраты', 'Трудозатраты', 'План. час'])) {
               const timeVal = robustGet(row, ['Планируемые трудозатраты', 'Трудозатраты', 'План. час']);
