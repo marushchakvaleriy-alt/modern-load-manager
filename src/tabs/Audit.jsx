@@ -28,7 +28,11 @@ import {
 import { db } from '../lib/firebase';
 import { useLoadEngine } from '../hooks/useLoadEngine';
 import { useDepartment } from '../store/departmentContext';
-import { exportSalaryAuditExcel, exportSingleEmployeeAuditExcel } from '../lib/excelUtils';
+import {
+  exportSalaryAuditExcel,
+  exportSingleEmployeeAuditExcel,
+  exportStandardSalaryTemplateExcel
+} from '../lib/excelUtils';
 
 const getMonthStartValue = () => {
   const today = new Date();
@@ -240,6 +244,15 @@ const Audit = () => {
     });
   };
 
+  const handleExportStandardTemplate = () => {
+    exportStandardSalaryTemplateExcel({
+      departmentName: departmentLabel,
+      startDate,
+      endDate,
+      auditData
+    });
+  };
+
   const handleExportSingle = (employeeName, stats) => {
     exportSingleEmployeeAuditExcel({
       employeeName,
@@ -268,12 +281,12 @@ const Audit = () => {
           <div className="flex flex-wrap items-center gap-3">
             <button
               type="button"
-              onClick={handleExportFullExcel}
-              className="neu-btn px-4 py-2.5 rounded-xl text-xs font-black text-emerald-700 bg-emerald-50 hover:bg-emerald-100 flex items-center gap-2 border border-emerald-300 shadow-sm transition-all"
-              title="Завантажити повний звіт закритих задач по всьому відділу в Excel"
+              onClick={handleExportStandardTemplate}
+              className="neu-btn px-4 py-2.5 rounded-xl text-xs font-black text-emerald-800 bg-emerald-100 hover:bg-emerald-200 flex items-center gap-2 border-2 border-emerald-400 shadow-md transition-all hover:scale-[1.02]"
+              title="Сформувати єдину Excel-таблицю ЗП на весь відділ (з синіми шапками по людях, формулами, сумою поінтів та розбивкою по нових/правках як у вашому шаблоні)"
             >
-              <FileSpreadsheet size={16} className="text-emerald-600" />
-              <span>Експорт ЗП відділу (Excel)</span>
+              <FileSpreadsheet size={17} className="text-emerald-700" />
+              <span>Сформувати звіт ЗП відділу (Excel як у шаблоні)</span>
             </button>
 
             <button

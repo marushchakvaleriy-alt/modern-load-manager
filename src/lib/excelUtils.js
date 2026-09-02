@@ -424,3 +424,143 @@ export const exportSingleEmployeeAuditExcel = ({
   const fileName = `ЗП_${cleanName}_${startDate}_${endDate}.xlsx`;
   XLSX.writeFile(wb, fileName);
 };
+
+/**
+ * Export department salary audit report matching company Excel template exactly:
+ * - Grouped by employee with blue banner
+ * - All columns A to P matching Bitrix export
+ * - Employee subtotal row with total points and "Нові вироби - X (Y поінт), правки - Z (W поінти)"
+ */
+export const exportStandardSalaryTemplateExcel = ({
+  departmentName,
+  startDate,
+  endDate,
+  auditData = []
+}) => {
+  const wb = XLSX.utils.book_new();
+
+  const headers = [
+    'Название',
+    'Статус',
+    'Дата создания',
+    'Крайний срок',
+    'Дата завершения',
+    'Планируемые трудозатраты',
+    'Затраченное время',
+    'Постановщик',
+    'Ответственный',
+    'Затраченное время (отчетный период)',
+    'Кількість виробів',
+    'Point',
+    'Вид робіт',
+    'Напрямок',
+    'Категория',
+    'виріб+кількість'
+  ];
+
+  const rows = [headers];
+
+  auditData.forEach((item) => {
+    const empName = item.employeeName;
+    const completedTasks = item.stats.completedProjects || [];
+    if (completedTasks.length === 0) return;
+
+    // 1. Employee Header Row (Banner)
+    const headerRow = new Array(16).fill('');
+    headerRow[8] = empName; // Col I: Ответственный
+    rows.push(headerRow);
+
+    let totalPoints = 0;
+    let newCount = 0;
+    let newPoints = 0;
+    let revCount = 0;
+    let revPoints = 0;
+
+    const formatDate = (d) => {
+      if (!d || d === '-') return '';
+      const parts = String(d).split(' ')[0].split(/[-.]/);
+      if (parts.length === 3) {
+        if (parts[0].length === 4) return `${parts[2]}.${parts[1]}.${parts[0]}`;
+        return `${parts[0]}.${parts[1]}.${parts[2]}`;
+      }
+      return d;
+    };
+
+    // 2. Task rows for this employee
+    completedTasks.forEach((p) => {
+      const isRev =
+        String(p.taskType || '').toLowerCase().includes('правк') ||
+        String(p.name || '').toLowerCase().includes('правк');
+
+      const pts = Number(p.points) || 0;
+      totalPoints += pts;
+
+      if (isRev) {
+        revCount++;
+        revPoints += pts;
+      } else {
+        newCount++;
+        newPoints += pts;
+      }
+
+      const taskRow = [
+        p.name || '',
+        'Завершена',
+        formatDate(p.startDate || p.createdAt),
+        formatDate(p.deadline),
+        formatDate(p.completedAt),
+        p.plannedTime || '',
+        p.spentTime || '',
+        p.creator || 'Салимко Вікторія',
+        empName,
+        p.spentTime || '',
+        p.itemsInfo ? 1 : 0,
+        pts,
+        isRev ? 'Правки' : 'Креслення на погодження',
+        p.direction || 'Загальне',
+        isRev ? 'Правки' : 'Розробка нового',
+        p.itemsInfo || ''
+      ];
+      rows.push(taskRow);
+    });
+
+    // 3. Employee Summary / Subtotal Row (like row 18 in screenshot)
+    const summaryRow = new Array(16).fill('');
+    summaryRow[8] = empName; // Col I: Employee name
+    summaryRow[11] = totalPoints; // Col L: Total points
+    summaryRow[15] = `Нові вироби - ${newCount} (${newPoints} поінт), правки - ${revCount} (${revPoints} поінти)`; // Col P
+    rows.push(summaryRow);
+
+    // Empty separator row
+    rows.push(new Array(16).fill(''));
+  });
+
+  const ws = XLSX.utils.aoa_to_sheet(rows);
+
+  // Precise column widths
+  ws['!cols'] = [
+    { wch: 58 }, // A: Название
+    { wch: 13 }, // B: Статус
+    { wch: 14 }, // C: Дата создания
+    { wch: 14 }, // D: Крайний срок
+    { wch: 14 }, // E: Дата завершения
+    { wch: 12 }, // F: Планируемые трудозатраты
+    { wch: 12 }, // G: Затраченное время
+    { wch: 22 }, // H: Постановщик
+    { wch: 24 }, // I: Ответственный
+    { wch: 16 }, // J: Затраченное время (отчетный период)
+    { wch: 12 }, // K: Кількість виробів
+    { wch: 10 }, // L: Point
+    { wch: 28 }, // M: Вид робіт
+    { wch: 12 }, // N: Напрямок
+    { wch: 18 }, // O: Категория
+    { wch: 48 }  // P: виріб+кількість
+  ];
+
+  XLSX.utils.book_append_sheet(wb, ws, 'Звіт ЗП відділу');
+
+  const cleanDept = String(departmentName || 'Відділ').replace(/[\\/:*?"<>|]/g, '_');
+  const fileName = `Звіт_ЗП_${cleanDept}_${startDate}_${endDate}.xlsx`;
+  XLSX.writeFile(wb, fileName);
+};
+
