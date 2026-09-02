@@ -283,10 +283,10 @@ const Audit = () => {
               type="button"
               onClick={handleExportStandardTemplate}
               className="neu-btn px-4 py-2.5 rounded-xl text-xs font-black text-emerald-800 bg-emerald-100 hover:bg-emerald-200 flex items-center gap-2 border-2 border-emerald-400 shadow-md transition-all hover:scale-[1.02]"
-              title="Сформувати єдину Excel-таблицю ЗП на весь відділ (з синіми шапками по людях, формулами, сумою поінтів та розбивкою по нових/правках як у вашому шаблоні)"
+              title="Сформувати звіт заробітної плати по всьому відділу в Excel"
             >
               <FileSpreadsheet size={17} className="text-emerald-700" />
-              <span>Сформувати звіт ЗП відділу (Excel як у шаблоні)</span>
+              <span>Сформувати звіт ЗП відділу</span>
             </button>
 
             <button
