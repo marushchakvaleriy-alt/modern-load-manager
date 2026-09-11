@@ -1,0 +1,55 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function isSelf(userId) {
+      return signedIn() && request.auth.uid == userId;
+    }
+
+    function isAdmin() {
+      return signedIn() &&
+        exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    }
+
+    function userCreateIsSafe(userId) {
+      return isSelf(userId) &&
+        request.resource.data.role == 'viewer' &&
+        request.resource.data.email == request.auth.token.email;
+    }
+
+    function userSelfUpdateIsSafe() {
+      return !request.resource.data.diff(resource.data).changedKeys().hasAny([
+        'role',
+        'email',
+        'createdAt'
+      ]);
+    }
+
+    match /users/{userId} {
+      allow read: if isSelf(userId) || isAdmin();
+      allow create: if isAdmin() || userCreateIsSafe(userId);
+      allow update: if isAdmin() || (isSelf(userId) && userSelfUpdateIsSafe());
+      allow delete: if isAdmin();
+    }
+
+    match /projects/{projectId} {
+      allow read: if signedIn();
+      allow write: if isAdmin();
+    }
+
+    match /employees/{employeeId} {
+      allow read: if signedIn();
+      allow write: if isAdmin();
+    }
+
+    match /absences/{absenceId} {
+      allow read: if signedIn();
+      allow write: if isAdmin();
+    }
+  }
+}

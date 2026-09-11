@@ -1,0 +1,153 @@
+@import "tailwindcss";
+
+@theme {
+  --color-background: #e0e5ec;
+  --color-surface: #e0e5ec;
+  --color-primary: #3d5afe;
+  --color-secondary: #64748b;
+  --color-accent: #f59e0b;
+  --color-danger: #ef4444;
+  --color-success: #10b981;
+  --color-border: #cbd5e1;
+  
+  --font-sans: "Outfit", "Inter", system-ui, sans-serif;
+  
+  --radius-xl: 1rem;
+  --radius-2xl: 1.5rem;
+}
+
+@layer base {
+  body {
+    background-color: #e0e5ec;
+    color: #374151;
+    font-family: var(--font-sans);
+    antialiased: true;
+  }
+}
+
+@layer components {
+  /* Neumorphism Flat Card / Panel */
+  .neu-flat {
+    background-color: #e0e5ec;
+    box-shadow: 9px 9px 16px rgba(163, 177, 198, 0.6), 
+               -9px -9px 16px rgba(255, 255, 255, 0.5);
+    border-radius: 1.25rem;
+  }
+
+  /* Neumorphism Pressed / Inset */
+  .neu-pressed {
+    background-color: #e0e5ec;
+    box-shadow: inset 6px 6px 10px 0 rgba(163, 177, 198, 0.7),
+                inset -6px -6px 10px 0 rgba(255, 255, 255, 0.8);
+    border-radius: 1.25rem;
+  }
+
+  /* Neumorphism Interactive Button */
+  .neu-btn {
+    background-color: #e0e5ec;
+    box-shadow: 6px 6px 10px rgba(163, 177, 198, 0.6), 
+               -6px -6px 10px rgba(255, 255, 255, 0.5);
+    border-radius: 1rem;
+    transition: all 0.2s ease-in-out;
+    cursor: pointer;
+  }
+
+  .neu-btn:hover {
+    box-shadow: 8px 8px 12px rgba(163, 177, 198, 0.7), 
+               -8px -8px 12px rgba(255, 255, 255, 0.6);
+  }
+
+  .neu-btn:active {
+    box-shadow: inset 4px 4px 8px rgba(163, 177, 198, 0.7),
+                inset -4px -4px 8px rgba(255, 255, 255, 0.8);
+  }
+
+  /* Active Menu Item */
+  .neu-menu-active {
+    background-color: #e0e5ec;
+    box-shadow: inset 4px 4px 8px rgba(163, 177, 198, 0.7),
+                inset -4px -4px 8px rgba(255, 255, 255, 0.8);
+    color: #3d5afe;
+    border-radius: 1rem;
+  }
+
+  /* Backward compatibility for glass-card */
+  .glass-card {
+    background-color: #e0e5ec;
+    box-shadow: 9px 9px 16px rgba(163, 177, 198, 0.6), 
+               -9px -9px 16px rgba(255, 255, 255, 0.5);
+    border-radius: 1.25rem;
+  }
+
+  .sidebar-link {
+    @apply flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 text-slate-600 hover:text-primary;
+  }
+
+  .sidebar-link.active {
+    box-shadow: inset 4px 4px 8px rgba(163, 177, 198, 0.7),
+                inset -4px -4px 8px rgba(255, 255, 255, 0.8);
+    color: #3d5afe;
+  }
+
+  .btn-primary {
+    background-color: #e0e5ec;
+    color: #3d5afe;
+    box-shadow: 6px 6px 10px rgba(163, 177, 198, 0.6), 
+               -6px -6px 10px rgba(255, 255, 255, 0.5);
+    padding: 0.625rem 1.5rem;
+    border-radius: 0.75rem;
+    font-weight: 600;
+    transition: all 0.2s ease-in-out;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    cursor: pointer;
+  }
+
+  .btn-primary:active {
+    box-shadow: inset 4px 4px 8px rgba(163, 177, 198, 0.7),
+                inset -4px -4px 8px rgba(255, 255, 255, 0.8);
+  }
+  
+  .badge {
+    @apply px-3 py-1 rounded-full text-[10px] font-bold tracking-wider uppercase;
+  }
+  
+  .table-header {
+    @apply px-6 py-4 text-slate-500 text-xs font-bold uppercase tracking-widest border-b border-gray-300;
+  }
+}
+
+/* Custom Scrollbar (Horizontal and Vertical) */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 9px;
+}
+::-webkit-scrollbar-track {
+  background: #d8dfe8;
+  border-radius: 9999px;
+}
+::-webkit-scrollbar-thumb {
+  background: #94a3b8;
+  border-radius: 9999px;
+  border: 2px solid #d8dfe8;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #3b82f6;
+}
+
+.custom-scrollbar::-webkit-scrollbar {
+  height: 9px;
+}
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: #cfd8e3;
+  border-radius: 9999px;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: #3b82f6;
+  border-radius: 9999px;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: #1d4ed8;
+}
