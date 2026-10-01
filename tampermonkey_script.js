@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Bitrix24 Auto-Filter & Scheduled Sync (Hooks + Full UI Control + Excel Export All)
 // @namespace    http://tampermonkey.net/
-// @version      6.5.0
+// @version      6.5.1
 // @description  Глобальні хуки + Динамічне додавання Канбан-груп через UI + Експорт у Excel (ВСІ 4 звіти)
 // @author       Valeriy
 // @match        https://portal.viyar.ua/*
@@ -246,6 +246,7 @@
             var plannedIdx = getColIndex(['планируемые трудозатраты']);
             var spentIdx = getColIndex(['затраченное время']);
             var respIdx = getColIndex(['ответственный']);
+            var creatorIdx = getColIndex(['постановщик', 'постановник', 'создатель', 'автор', 'creator']);
             var pointsIdx = getColIndex(['point', 'поинты']);
             var typeIdx = getColIndex(['категорія', 'категория', 'вид работ']);
             var dirIdx = getColIndex(['напрямок']);
@@ -278,6 +279,7 @@
                     name: name,
                     status: mapBitrixStatus(tds[statusIdx], tds[completedIdx]),
                     assignedEmployee: tds[respIdx] || 'Не призначено',
+                    creator: creatorIdx !== -1 ? (tds[creatorIdx] || '') : '',
                     points: Number(tds[pointsIdx]) || 1,
                     plannedTime: tds[plannedIdx] || '',
                     spentTime: tds[spentIdx] || '',
@@ -310,6 +312,7 @@
                 'Назва проєкту/задачі',
                 'Канбан-статус',
                 'Статус звіту',
+                'Постановник',
                 'Відповідальний',
                 'Поінти',
                 'Напрямок',
@@ -332,6 +335,7 @@
                     (p.name || '').replace(/"/g, '""'),
                     (p.kanbanStage || 'НЕ ВКАЗАНО').replace(/"/g, '""'),
                     (p.status || '').replace(/"/g, '""'),
+                    (p.creator || '').replace(/"/g, '""'),
                     (p.assignedEmployee || '').replace(/"/g, '""'),
                     p.points || 0,
                     (p.direction || '').replace(/"/g, '""'),

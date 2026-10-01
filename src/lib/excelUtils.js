@@ -142,6 +142,7 @@ export const processBitrixExcel = (file) => {
               name: robustGet(row, ['Название', 'Title', 'Назва', 'Заголовок', 'Задача', 'Наименование']) || 'Без назви',
               status: completedAt ? 'completed' : mapBitrixStatus(robustGet(row, ['Статус', 'Status', 'Стан'])),
               assignedEmployee: String(robustGet(row, ['Ответственный', 'Responsible', 'Відповідальний', 'Виконавець', 'Исполнитель']) || 'Не призначено').trim(),
+              creator: String(robustGet(row, ['Постановщик', 'Постановник', 'Создатель', 'Автор', 'Creator', 'Створив', 'Постановщик задачи']) || '').trim(),
               points: Number(points),
               plannedTime: robustGet(row, ['Планируемые трудозатраты']) || '',
               spentTime: robustGet(row, ['Затраченное время', 'Витрачений час']) || '',
@@ -370,6 +371,7 @@ export const exportSalaryAuditExcel = ({
       allTasksRows.push({
         '№': taskCounter++,
         'Виконавець': item.employeeName,
+        'Постановник': p.creator || '',
         'ID Бітрікс': p.bitrixId || p.externalId || '',
         'Назва задачі': p.name || '',
         'Дата закриття': p.completedAt || '',
@@ -405,6 +407,7 @@ export const exportSingleEmployeeAuditExcel = ({
 
   const tasksRows = (stats?.completedProjects || []).map((p, idx) => ({
     '№': idx + 1,
+    'Постановник': p.creator || '',
     'ID Бітрікс': p.bitrixId || p.externalId || '',
     'Назва задачі': p.name || '',
     'Дата закриття': p.completedAt || '',
@@ -511,7 +514,7 @@ export const exportStandardSalaryTemplateExcel = ({
         formatDate(p.completedAt),
         p.plannedTime || '',
         p.spentTime || '',
-        p.creator || 'Салимко Вікторія',
+        p.creator || '',
         empName,
         p.spentTime || '',
         p.itemsInfo ? 1 : 0,
