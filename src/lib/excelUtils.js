@@ -133,21 +133,22 @@ export const processBitrixExcel = (file) => {
               { preferDayFirst: true }
             ) || null;
 
-            const rawId = String(robustGet(row, ['ID', 'Id', 'Айді', 'ID задачи', 'Номер', '№', 'Код', 'Идентификатор', 'Task ID', 'Task_id']) || '').trim();
+            const rawId = String(robustGet(row, ['ID', 'Id', 'Айді', 'ID задачи', 'ID задачі', 'Номер', '№', 'Код', 'Идентификатор', 'Task ID', 'Task_id']) || '').trim();
 
             const p = {
               id: rawId ? `btx-${rawId}` : `btx-${Date.now()}-${projects.length}-${index}`,
               bitrixId: rawId,
               externalId: rawId,
-              name: robustGet(row, ['Название', 'Title', 'Назва', 'Заголовок', 'Задача', 'Наименование']) || 'Без назви',
-              status: completedAt ? 'completed' : mapBitrixStatus(robustGet(row, ['Статус', 'Status', 'Стан'])),
+              name: robustGet(row, ['Назва проєкту/задачі', 'Название', 'Title', 'Назва', 'Заголовок', 'Задача', 'Наименование']) || 'Без назви',
+              status: completedAt ? 'completed' : mapBitrixStatus(robustGet(row, ['Статус звіту', 'Статус', 'Status', 'Стан'])),
               assignedEmployee: String(robustGet(row, ['Ответственный', 'Responsible', 'Відповідальний', 'Виконавець', 'Исполнитель']) || 'Не призначено').trim(),
               creator: String(robustGet(row, ['Постановщик', 'Постановник', 'Создатель', 'Автор', 'Creator', 'Створив', 'Постановщик задачи']) || '').trim(),
+              kanbanStage: String(robustGet(row, ['Канбан-статус', 'Канбан', 'Стадія', 'Колонка', 'Stage']) || '').trim(),
               points: Number(points),
               plannedTime: robustGet(row, ['Планируемые трудозатраты']) || '',
               spentTime: robustGet(row, ['Затраченное время', 'Витрачений час']) || '',
               direction: robustGet(row, ['Напрямок', 'Направление', 'Direction', 'Сфера', 'Вид діяльності']) || 'Загальне',
-              taskType: robustGet(row, ['Категорія', 'Категория', 'Category', 'Розробка/Правка', 'Правка/Нова', 'Вид робіт', 'Вид', 'Тип', 'Type']) || '',
+              taskType: robustGet(row, ['Вид робіт / Категорія', 'Категорія', 'Категория', 'Category', 'Розробка/Правка', 'Правка/Нова', 'Вид робіт', 'Вид', 'Тип', 'Type']) || '',
               itemsInfo: robustGet(row, ['виріб+кількість', 'виріб + кількість', 'виріб/кількість', 'Виріб', 'Изделие', 'Product', 'items+qty', 'виріб кількість']) || '',
               startDate,
               deadline,
@@ -158,8 +159,13 @@ export const processBitrixExcel = (file) => {
 
             p.sourceKey = getImportedProjectKey(p);
             
-            // Set department based on sheet name if not available
-            if (sheetName.toLowerCase().includes('конструювання') || sheetName.toLowerCase().includes('construction')) {
+            // Set department from row column or sheet name
+            const rowDept = String(robustGet(row, ['Відділ', 'Отдел', 'Department']) || '').toLowerCase();
+            if (rowDept.includes('конструюван') || rowDept.includes('construction')) {
+               p.department = 'construction';
+            } else if (rowDept.includes('проєкт') || rowDept.includes('design')) {
+               p.department = 'design';
+            } else if (sheetName.toLowerCase().includes('конструювання') || sheetName.toLowerCase().includes('construction')) {
                p.department = 'construction';
             } else if (sheetName.toLowerCase().includes('проєкт') || sheetName.toLowerCase().includes('design')) {
                p.department = 'design';

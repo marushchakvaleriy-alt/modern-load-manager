@@ -582,6 +582,14 @@
                         allCombinedProjects = allCombinedProjects.concat(constrProjects);
                     }
 
+                    // Також зберігаємо в буфер синхронізації для веб-додатку
+                    if (designProjects.length > 0) {
+                        GM_setValue('LM_SHARED_PROJECTS_DESIGN', JSON.stringify({ projects: designProjects, department: 'design' }));
+                    }
+                    if (constrProjects && constrProjects.length > 0) {
+                        GM_setValue('LM_SHARED_PROJECTS_CONSTRUCTION', JSON.stringify({ projects: constrProjects, department: 'construction' }));
+                    }
+
                     downloadProjectsAsExcelCsv(allCombinedProjects, 'viyar_all_reports_' + formatDateUA(new Date()));
                 } catch(e) {
                     alert('Помилка експорту: ' + e.message);
