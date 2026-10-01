@@ -246,7 +246,9 @@
             var plannedIdx = getColIndex(['планируемые трудозатраты']);
             var spentIdx = getColIndex(['затраченное время']);
             var respIdx = getColIndex(['ответственный']);
-            var creatorIdx = getColIndex(['постановщик', 'постановник', 'создатель', 'автор', 'creator']);
+            var creatorIdx = getColIndex(['постановщик', 'постановник', 'создатель', 'автор', 'creator', 'створив', 'поставив', 'хто поставив', 'ким створено']);
+            console.log('[Bitrix Parser] Заголовки звіту:', headers);
+            console.log('[Bitrix Parser] Колонка постановника (індекс):', creatorIdx, creatorIdx !== -1 ? headers[creatorIdx] : 'НЕ ЗНАЙДЕНО');
             var pointsIdx = getColIndex(['point', 'поинты']);
             var typeIdx = getColIndex(['категорія', 'категория', 'вид работ']);
             var dirIdx = getColIndex(['напрямок']);
@@ -448,7 +450,7 @@
 
             panel.innerHTML = `
                 <div style="font-weight: bold; border-bottom: 1px solid #cbd5e1; padding-bottom: 4px; display: flex; justify-content: space-between; align-items: center;">
-                    <span>ViYar Sync</span><span style="font-size: 10px; color: #94a3b8;">v6.5.0 (All 4 Reports Export)</span>
+                    <span>ViYar Sync</span><span style="font-size: 10px; color: #94a3b8;">v6.5.1 (Постановник + Канбан)</span>
                 </div>
 
                 <div style="display: flex; justify-content: space-between; align-items: center;">
@@ -685,6 +687,7 @@
                 var departmentsToSync = (!isManual || targetDeptOverride === 'all') ? ['design', 'construction'] : [targetDeptOverride];
                 var grandTotalCount = 0;
                 var grandKanbanCount = 0;
+                var grandCreatorCount = 0;
 
                 for (var d = 0; d < departmentsToSync.length; d++) {
                     var dept = departmentsToSync[d];
@@ -698,6 +701,7 @@
                         deptProjects.forEach(p => { 
                             p.department = dept;
                             if (p.kanbanStage) grandKanbanCount++; 
+                            if (p.creator) grandCreatorCount++;
                         });
 
                         GM_setValue('LM_SHARED_PROJECTS_' + dept.toUpperCase(), JSON.stringify({ projects: deptProjects, department: dept }));
@@ -708,7 +712,12 @@
                 GM_setValue('lm_last_sync_time', Date.now());
                 if (statusEl) statusEl.innerText = `✅ Готово (${grandTotalCount})`;
                 if (fabStatus) fabStatus.innerText = `✅ Готово`;
-                if (isManual) alert(`Успішно зібрано ${grandTotalCount} задач та відправлено у React!\nЗ них з Канбан-статусом: ${grandKanbanCount} із ${grandTotalCount}`);
+                if (isManual) {
+                    var creatorMsg = grandCreatorCount > 0
+                        ? `З постановником: ${grandCreatorCount} із ${grandTotalCount}`
+                        : `⚠️ Постановника НЕ виявлено! Перевірте, чи є колонка "Постановщик" або "Постановник" у звіті Бітрікс.`;
+                    alert(`Успішно зібрано ${grandTotalCount} задач та відправлено у React!\nЗ Канбан-статусом: ${grandKanbanCount} із ${grandTotalCount}\n${creatorMsg}`);
+                }
 
             } catch (err) {
                 if (statusEl) statusEl.innerText = '❌ Помилка';
