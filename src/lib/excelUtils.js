@@ -377,7 +377,7 @@ export const exportSalaryAuditExcel = ({
       allTasksRows.push({
         '№': taskCounter++,
         'Виконавець': item.employeeName,
-        'Постановник': p.creator || '',
+        'Постановник': p.creator || p['Постановщик'] || p['Постановник'] || p.createdBy || p.author || '',
         'ID Бітрікс': p.bitrixId || p.externalId || '',
         'Назва задачі': p.name || '',
         'Дата закриття': p.completedAt || '',
@@ -413,7 +413,7 @@ export const exportSingleEmployeeAuditExcel = ({
 
   const tasksRows = (stats?.completedProjects || []).map((p, idx) => ({
     '№': idx + 1,
-    'Постановник': p.creator || '',
+    'Постановник': p.creator || p['Постановщик'] || p['Постановник'] || p.createdBy || p.author || '',
     'ID Бітрікс': p.bitrixId || p.externalId || '',
     'Назва задачі': p.name || '',
     'Дата закриття': p.completedAt || '',
@@ -520,7 +520,7 @@ export const exportStandardSalaryTemplateExcel = ({
         formatDate(p.completedAt),
         p.plannedTime || '',
         p.spentTime || '',
-        p.creator || '',
+        p.creator || p['Постановщик'] || p['Постановник'] || p.createdBy || p.author || '',
         empName,
         p.spentTime || '',
         p.itemsInfo ? 1 : 0,
